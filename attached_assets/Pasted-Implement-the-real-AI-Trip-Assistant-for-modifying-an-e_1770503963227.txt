@@ -1,0 +1,52 @@
+Implement the real AI Trip Assistant for modifying an existing trip plan, with tier gating and save/revert.
+
+Scope:
+- Frontend: reuse existing "مساعد الرحلة" button/modal in TripDetails.
+- Backend: add one tRPC mutation (preferred) or one API endpoint.
+- DB: persist updated plan into trips.plan (JSON).
+
+Requirements (must):
+1) Tier gating:
+   - If user.tier is "free" => keep current upgrade/coming-soon message (no chat).
+   - If user.tier is "smart" or "professional" => show chat UI.
+
+2) Chat UI (inside existing modal/component):
+   - messages list (user + assistant)
+   - textarea input + send
+   - loading indicator
+   - show errors nicely
+   - keep prompt + response short to save cost
+
+3) Server endpoint:
+   - Input: { tripId: number, instruction: string }
+   - Load trip from DB by tripId and verify it belongs to current user.
+   - Read current plan JSON from trips.plan.
+   - Call LLM using env var:
+     - If OPENAI_API_KEY exists => use OpenAI
+     - Else if GEMINI_API_KEY exists => use Gemini
+     - Else throw a clear error "AI key not configured"
+   - Minimal prompt: send current plan JSON + user's instruction only (no web, no extra context).
+   - Force JSON output only.
+
+4) Validate output:
+   - Define a strict Zod schema for plan JSON matching the existing structure used by TripDetails/SharedTrip.
+   - Parse/validate AI output JSON. If invalid => return a safe error and DO NOT overwrite.
+
+5) UI behavior:
+   - On success: preview the updated plan immediately in TripDetails state (without saving).
+   - Add 2 buttons in the modal:
+     - "حفظ التعديلات" => persists trips.plan = updatedPlan
+     - "تراجع" => restores original plan in UI (no DB changes)
+   - After save: show toast "تم حفظ التعديلات".
+
+6) Cost controls:
+   - Use a low-cost model by default (OpenAI: gpt-4o-mini if available, else cheapest available in codebase).
+   - Limit max output tokens to a reasonable number.
+   - Do not send large unused fields; send only plan JSON and instruction.
+
+Deliverables:
+- List files changed.
+- Env vars needed: OPENAI_API_KEY and/or GEMINI_API_KEY.
+- How to test:
+  a) free tier user sees upgrade message
+  b) smart/pro user can chat, preview changes, save, refresh page and see saved plan

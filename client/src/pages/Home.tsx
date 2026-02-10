@@ -1,0 +1,428 @@
+import { useAuth } from "@/hooks/useAuth";
+import { useInView } from "@/hooks/useInView";
+import { Button } from "@/components/ui/button";
+import { CityDetailModal } from "@/components/CityDetailModal";
+import { Calendar, Settings, Sparkles, Globe, Users, Share2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Navbar } from "@/components/Navbar";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { DESTINATIONS_CATALOG, type DestinationCatalogItem } from "@/constants/destinationsCatalog";
+import { getLocalizedName } from "@/lib/utils";
+
+export default function Home() {
+  let { isAuthenticated } = useAuth();
+  const { language, isRTL } = useLanguage();
+  const [selectedDestination, setSelectedDestination] = useState<DestinationCatalogItem | null>(null);
+  
+  const { ref: destinationsRef, isInView: destinationsInView } = useInView();
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const hasShownHint = useRef(false);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const handleScroll = () => {
+      const scrollLeft = carousel.scrollLeft;
+      const cardWidth = carousel.offsetWidth * 0.92;
+      const gap = 12;
+      const index = Math.round(scrollLeft / (cardWidth + gap));
+      setActiveIndex(Math.max(0, Math.min(index, 4)));
+    };
+
+    carousel.addEventListener('scroll', handleScroll, { passive: true });
+    return () => carousel.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const [isHovering, setIsHovering] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!destinationsInView || hasShownHint.current) return;
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const isMobile = window.innerWidth < 768;
+    if (prefersReducedMotion || !isMobile) return;
+
+    hasShownHint.current = true;
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const timeout = setTimeout(() => {
+      carousel.scrollTo({ left: 10, behavior: 'smooth' });
+      setTimeout(() => {
+        carousel.scrollTo({ left: 0, behavior: 'smooth' });
+      }, 250);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [destinationsInView]);
+
+  const totalSlides = 5;
+  const activeIndexRef = useRef(activeIndex);
+  
+  useEffect(() => {
+    activeIndexRef.current = activeIndex;
+  }, [activeIndex]);
+  
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion || isHovering || isDragging) return;
+
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const autoplayInterval = 3500;
+
+    const intervalId = setInterval(() => {
+      if (!carousel) return;
+      
+      const isMobile = window.innerWidth < 768;
+      const cardWidth = isMobile ? carousel.offsetWidth * 0.92 : 340;
+      const gap = isMobile ? 12 : 24;
+      
+      const currentIndex = activeIndexRef.current;
+      const nextIndex = currentIndex >= totalSlides - 1 ? 0 : currentIndex + 1;
+      const nextScroll = nextIndex * (cardWidth + gap);
+      
+      carousel.scrollTo({ left: nextScroll, behavior: 'smooth' });
+      setActiveIndex(nextIndex);
+    }, autoplayInterval);
+
+    return () => clearInterval(intervalId);
+  }, [isHovering, isDragging]);
+
+  useEffect(() => {
+    const carousel = carouselRef.current;
+    if (!carousel) return;
+
+    const handleTouchStart = () => setIsDragging(true);
+    const handleTouchEnd = () => setTimeout(() => setIsDragging(false), 1000);
+
+    carousel.addEventListener('touchstart', handleTouchStart, { passive: true });
+    carousel.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      carousel.removeEventListener('touchstart', handleTouchStart);
+      carousel.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, []);
+
+  const scrollCarousel = useCallback((direction: 'left' | 'right') => {
+    if (!carouselRef.current) return;
+    const cardWidth = 340;
+    const gap = 24;
+    const scrollAmount = cardWidth + gap;
+    const currentScroll = carouselRef.current.scrollLeft;
+    const newScroll = direction === 'right' 
+      ? currentScroll + scrollAmount 
+      : currentScroll - scrollAmount;
+    carouselRef.current.scrollTo({ left: newScroll, behavior: 'smooth' });
+  }, []);
+
+  const destinations = DESTINATIONS_CATALOG;
+
+  const features = [
+    {
+      icon: <Sparkles className="w-5 h-5" />,
+      title: 'تخطيط ذكي',
+      titleEn: 'Smart Planning',
+      description: 'جداول رحلات مخصصة لتفضيلاتك',
+      descriptionEn: 'Custom trip schedules for your preferences'
+    },
+    {
+      icon: <Settings className="w-5 h-5" />,
+      title: 'تخصيص كامل',
+      titleEn: 'Full Control',
+      description: 'اختر الوجهات والميزانية والاهتمامات',
+      descriptionEn: 'Choose destinations, budget and interests'
+    },
+    {
+      icon: <Calendar className="w-5 h-5" />,
+      title: 'حجز مباشر',
+      titleEn: 'Direct Booking',
+      description: 'احجز الأنشطة والفنادق بسهولة',
+      descriptionEn: 'Book activities and hotels easily'
+    },
+    {
+      icon: <Globe className="w-5 h-5" />,
+      title: 'دعم اللغات',
+      titleEn: 'Multi-language',
+      description: 'متاح بالعربية والإنجليزية',
+      descriptionEn: 'Available in Arabic and English'
+    },
+    {
+      icon: <Users className="w-5 h-5" />,
+      title: 'مرشدون محترفون',
+      titleEn: 'Pro Guides',
+      description: 'مرشدون سياحيون معتمدون',
+      descriptionEn: 'Certified tour guides'
+    },
+    {
+      icon: <Share2 className="w-5 h-5" />,
+      title: 'مشاركة سهلة',
+      titleEn: 'Easy Sharing',
+      description: 'شارك خططك أو صدرها PDF',
+      descriptionEn: 'Share plans or export as PDF'
+    }
+  ];
+
+  const content = {
+    ar: {
+      hero: {
+        title: 'رحلتك تبدأ من هنا',
+        subtitle: 'خطط. اكتشف. انطلق.',
+        cta: 'ابدأ الآن'
+      },
+      destinationsTitle: 'اختر وجهتك',
+      destinationsSubtitle: 'مدن تستحق الزيارة',
+      explore: 'اكتشف',
+      featuresTitle: 'مميزات مرحال',
+      ctaSection: {
+        title: 'جاهز للانطلاق؟',
+        subtitle: 'ابدأ التخطيط الآن',
+        button: 'ابدأ مجانًا'
+      },
+      footer: '© 2026 مرحال. جميع الحقوق محفوظة.',
+      createdByPrefix: 'تم التطوير بواسطة',
+      createdByName: 'محمد'
+    },
+    en: {
+      hero: {
+        title: 'Discover Saudi Arabia',
+        subtitle: 'Trips made for you. Plan smart.',
+        cta: 'Start Planning'
+      },
+      destinationsTitle: 'Top Destinations',
+      destinationsSubtitle: 'Beautiful cities await you',
+      explore: 'Explore',
+      featuresTitle: 'Why Merhaal?',
+      ctaSection: {
+        title: 'Ready to Go?',
+        subtitle: 'Start your next trip now',
+        button: 'Start Free'
+      },
+      footer: '© 2026 Merhaal. All rights reserved.',
+      createdByPrefix: 'Created by',
+      createdByName: 'Mohammed'
+    }
+  };
+
+  const t = content[language];
+
+  return (
+    <div 
+      className={`min-h-screen ${isRTL ? 'rtl' : 'ltr'}`} 
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
+      <Navbar />
+
+      {/* Hero — mobile: compact static, desktop: full-height */}
+      <section 
+        className="relative flex flex-col items-center justify-center overflow-hidden min-h-[60svh] md:min-h-[100svh]"
+        style={{ 
+          paddingTop: "calc(env(safe-area-inset-top) + 56px)",
+          paddingBottom: "env(safe-area-inset-bottom)"
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary/90 to-accent/80"></div>
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.15),transparent_50%)]"></div>
+        
+        <div className="container mx-auto px-6 relative z-10 text-center flex flex-col items-center justify-center flex-1">
+          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold text-white mb-3 md:mb-6 leading-tight" data-testid="text-hero-title">
+            {t.hero.title}
+          </h1>
+          <p className="text-base md:text-xl text-white/90 mb-6 md:mb-10 max-w-md md:max-w-2xl mx-auto leading-relaxed">
+            {t.hero.subtitle}
+          </p>
+          <Button 
+            size="lg" 
+            onClick={() => {
+              document.getElementById('destinations')?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="bg-white text-primary text-base md:text-lg px-8 py-6 h-14 md:h-16 rounded-full shadow-xl font-semibold min-w-[160px]"
+            data-testid="button-hero-cta"
+          >
+            {t.hero.cta}
+          </Button>
+        </div>
+      </section>
+
+      {/* Destinations */}
+      <section 
+        id="destinations" 
+        className="py-10 md:py-24 bg-secondary/30"
+        ref={destinationsRef as React.RefObject<HTMLElement>}
+      >
+        <div className="container mx-auto">
+          <div className="text-center mb-6 md:mb-14 px-4">
+            <h2 className="text-2xl md:text-4xl font-semibold mb-1 md:mb-3 text-foreground" data-testid="text-destinations-title">
+              {t.destinationsTitle}
+            </h2>
+            <p className="text-sm md:text-lg text-muted-foreground">
+              {t.destinationsSubtitle}
+            </p>
+          </div>
+
+          {/* MOBILE: Static vertical card list — no carousel, no transforms */}
+          <div className="md:hidden flex flex-col gap-4 px-4">
+            {destinations.map((dest, index) => (
+              <button
+                key={index}
+                onClick={() => setSelectedDestination(dest)}
+                className="relative w-full rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 text-start"
+                data-testid={`button-destination-mobile-${index}`}
+              >
+                <div className="aspect-[16/9] relative">
+                  <img 
+                    src={dest.image} 
+                    alt={getLocalizedName(dest.name, dest.nameEn, language)}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/images/cities/riyadh-hero.jpg';
+                    }}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+                    <h3 className="text-lg font-semibold mb-0.5">
+                      {getLocalizedName(dest.name, dest.nameEn, language)}
+                    </h3>
+                    <p className="text-xs text-white/80 leading-relaxed">
+                      {getLocalizedName(dest.subtitle, dest.subtitleEn, language)}
+                    </p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* DESKTOP: Carousel with animations (unchanged) */}
+          <div 
+            className="hidden md:block relative group/carousel"
+            onMouseEnter={() => setIsHovering(true)}
+            onMouseLeave={() => setIsHovering(false)}
+          >
+            <div 
+              ref={carouselRef}
+              className="flex gap-6 overflow-x-auto scroll-smooth snap-x snap-mandatory pb-4 px-12 lg:px-16 hide-scrollbar motion-reduce:scroll-auto"
+            >
+              {destinations.map((dest, index) => (
+                <button 
+                  key={index}
+                  onClick={() => setSelectedDestination(dest)}
+                  className="group relative flex-shrink-0 w-[320px] lg:w-[340px] snap-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-2xl card-hover"
+                  data-testid={`button-destination-desktop-${index}`}
+                >
+                  <div className="aspect-[4/5] relative overflow-hidden rounded-2xl">
+                    <img 
+                      src={dest.image} 
+                      alt={getLocalizedName(dest.name, dest.nameEn, language)}
+                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500 ease-out"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/images/cities/riyadh-hero.jpg';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+                    
+                    <div className="absolute bottom-0 left-0 right-0 p-6 text-white text-start">
+                      <h3 className="text-2xl font-semibold mb-1">
+                        {getLocalizedName(dest.name, dest.nameEn, language)}
+                      </h3>
+                      <p className="text-sm text-white/80 mb-4 leading-relaxed">
+                        {getLocalizedName(dest.subtitle, dest.subtitleEn, language)}
+                      </p>
+                      <span className="inline-flex items-center justify-center h-11 px-6 bg-white/95 text-primary font-medium text-sm rounded-full shadow-sm group-hover:bg-white transition-colors">
+                        {t.explore}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="absolute inset-y-0 left-0 w-12 lg:w-16 bg-gradient-to-r from-secondary/30 to-transparent pointer-events-none z-10"></div>
+            <div className="absolute inset-y-0 right-0 w-12 lg:w-16 bg-gradient-to-l from-secondary/30 to-transparent pointer-events-none z-10"></div>
+
+            <button
+              onClick={() => scrollCarousel(isRTL ? 'right' : 'left')}
+              className="flex absolute top-1/2 -translate-y-1/2 start-2 lg:start-4 z-20 w-10 h-10 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border shadow-sm text-foreground/70 opacity-0 group-hover/carousel:opacity-100 hover:bg-background hover:text-foreground transition-all duration-200 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label={isRTL ? 'التالي' : 'Previous'}
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => scrollCarousel(isRTL ? 'left' : 'right')}
+              className="flex absolute top-1/2 -translate-y-1/2 end-2 lg:end-4 z-20 w-10 h-10 items-center justify-center rounded-full bg-background/80 backdrop-blur-sm border border-border shadow-sm text-foreground/70 opacity-0 group-hover/carousel:opacity-100 hover:bg-background hover:text-foreground transition-all duration-200 motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              aria-label={isRTL ? 'السابق' : 'Next'}
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section 
+        id="features" 
+        className="py-12 md:py-28 bg-background"
+      >
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-8 md:mb-20">
+            <h2 className="text-2xl md:text-4xl font-semibold text-foreground mb-2 md:mb-3" data-testid="text-features-title">
+              {t.featuresTitle}
+            </h2>
+            <p className="text-sm md:text-base text-muted-foreground max-w-md mx-auto">
+              {language === 'ar' ? 'كل ما تحتاجه في مكان واحد' : 'Smart tools for your perfect trip'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 max-w-5xl mx-auto">
+            {features.map((feature, index) => (
+              <div 
+                key={index} 
+                className="p-4 md:p-8"
+                data-testid={`card-feature-${index}`}
+              >
+                <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-3 md:mb-5">
+                  {feature.icon}
+                </div>
+                <h3 className="text-sm md:text-lg font-semibold text-foreground mb-1 md:mb-2">
+                  {language === 'ar' ? feature.title : feature.titleEn}
+                </h3>
+                <p className="text-xs md:text-sm text-muted-foreground leading-relaxed">
+                  {language === 'ar' ? feature.description : feature.descriptionEn}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <footer 
+        className="bg-secondary/50 dark:bg-muted/30 py-6 md:py-10"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
+      >
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-xs text-muted-foreground/70">
+              {t.footer}
+            </p>
+            <p className="text-[10px] text-muted-foreground/50">
+              {t.createdByPrefix}{' '}
+              <a href="https://www.linkedin.com/in/alamri-mh" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground/80">{t.createdByName}</a>
+            </p>
+          </div>
+        </div>
+      </footer>
+
+      <CityDetailModal
+        destination={selectedDestination}
+        isOpen={!!selectedDestination}
+        onClose={() => setSelectedDestination(null)}
+        language={language}
+      />
+    </div>
+  );
+}

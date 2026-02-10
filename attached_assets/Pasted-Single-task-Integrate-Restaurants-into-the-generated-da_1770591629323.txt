@@ -1,0 +1,44 @@
+Single task: Integrate Restaurants into the generated daily plan as 2–3 meal stops per day (lunch/dinner or breakfast/lunch/dinner), using the restaurants table, and include their costs in daily/trip budget calculations.
+
+Requirements:
+1) Add a user input for mealsPerDay in the trip planning form (PlanTrip):
+   - options: 2 or 3
+   - default: 2
+   - Save it with the trip request (do not change DB schema; store inside plan JSON or request payload only).
+2) Generation logic:
+   - For each day, after selecting activities, insert meal entries:
+     - If mealsPerDay=2: Lunch + Dinner
+     - If mealsPerDay=3: Breakfast + Lunch + Dinner
+   - Assign time windows:
+     - Breakfast: 08:00–09:00
+     - Lunch: 13:00–14:00
+     - Dinner: 19:00–20:30
+   - Meal entries should have:
+     - type/category = "مطاعم" (and English label if lang=en)
+     - name from restaurants.name
+     - description using cuisine + specialties + location
+     - estimatedCost = restaurants.avgPrice
+     - googleMapsUrl: if restaurant has no maps url, use a Google Maps search URL with restaurant name + destination city
+3) Restaurant selection:
+   - Filter by destinationId (city).
+   - Choose priceRange based on overall budget level:
+     - low -> اقتصادي
+     - medium -> متوسط
+     - high -> فاخر (or mix فاخر/متوسط)
+   - Avoid repeats within the same trip (no duplicate restaurant names).
+4) Budget math:
+   - Include meal estimatedCost into:
+     - dayTotalCost
+     - dayBudgetSummary.activitiesCost (or add a separate foodCost field if easier, but totals must be correct)
+     - tripTotalCost and remainingBudget
+   - Keep current accommodation/activity cost calculations intact.
+5) Backward compatibility:
+   - Existing saved trips without mealsPerDay should render normally.
+6) Minimal UI:
+   - Only add the mealsPerDay selector in the planning form.
+   - No redesign.
+
+Deliverables:
+- Files changed
+- Example of generated day plan showing meals inserted and costs included
+- Confirm totals/remainingBudget change accordingly

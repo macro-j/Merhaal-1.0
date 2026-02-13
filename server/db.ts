@@ -14,7 +14,10 @@ let _resolvedOpenIdColumn: string | null | undefined = undefined;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      _pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      });
       _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
@@ -27,7 +30,10 @@ export async function getDb() {
 export async function getPool(): Promise<pg.Pool | null> {
   if (!_pool && process.env.DATABASE_URL) {
     try {
-      _pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      _pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false },
+      });
       _db = drizzle(_pool);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
@@ -36,6 +42,7 @@ export async function getPool(): Promise<pg.Pool | null> {
   }
   return _pool;
 }
+
 
 /**
  * Detect which OpenID column exists in public.users, if any.

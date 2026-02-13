@@ -208,7 +208,15 @@ function findAffordableRestaurant(
   usedIds: Set<number>,
   budgetPriceRange?: string
 ): { restaurant: any; isBreakfastSpecific: boolean } | null {
-  let available = candidates.filter(r => !usedIds.has(r.id));
+
+let available = candidates.filter(r => !usedIds.has(r.id));
+
+// إذا فطور وما فيه خيارات غير مستخدمة → اسمح بالتكرار
+if (mealType === 'breakfast' && available.length === 0) {
+  available = candidates;
+}
+
+
   if (available.length === 0) return null;
 
   if (budgetPriceRange) {
@@ -218,35 +226,70 @@ function findAffordableRestaurant(
 
   let isBreakfastSpecific = false;
 
-  const taggedForMeal = available.filter(r => hasMealTag(r, mealType) || (mealType === 'breakfast' && hasMealTag(r, 'cafe')));
+  // 1️⃣ أولاً: فلترة حسب meal_tags
+  const taggedForMeal = available.filter(r =>
+    hasMealTag(r, mealType) ||
+    (mealType === 'breakfast' && hasMealTag(r, 'cafe'))
+  );
+
   if (taggedForMeal.length > 0) {
     available = taggedForMeal;
     if (mealType === 'breakfast') isBreakfastSpecific = true;
-  } else if (mealType === 'breakfast') {
-    const breakfastKeywords = ['فطور', 'إفطار', 'breakfast', 'كافيه', 'مقهى', 'cafe', 'صباح', 'coffee'];
-    const breakfastPreferred = available.filter(r => {
+  } 
+  else if (mealType === 'breakfast') {
+    // 2️⃣ fallback للفطور فقط (كلمات مفتاحية)
+    const breakfastKeywords = [
+      'فطور', 'إفطار', 'breakfast',
+      'كافيه', 'مقهى', 'cafe', 'coffee',
+      'bakery', 'مخبز', 'حلويات', 'patisserie', 'brunch'
+    ];
+
+    const preferred = available.filter(r => {
       const text = `${r.cuisine || ''} ${r.trending || ''} ${r.name || ''}`.toLowerCase();
-      return breakfastKeywords.some(kw => text.includes(kw));
+      return breakfastKeywords.some(kw => text.includes(kw.toLowerCase()));
     });
-    if (breakfastPreferred.length > 0) {
-      available = breakfastPreferred;
+
+    if (preferred.length > 0) {
+      available = preferred;
       isBreakfastSpecific = true;
+    } else {
+      // ❌ أهم سطر: لا نرجع مطعم عشاء كفطور
+      return null;
     }
   }
 
-  for (const restaurant of available) {
-    const cost = parseFloat(restaurant.avgPrice) || 0;
-    if (cost <= maxCost && cost > 0) {
-      return { restaurant, isBreakfastSpecific };
-    }
+  // 3️⃣ حاول اختيار مطعم ضمن الميزانية
+for (const restaurant of available) {
+  const cost = parseFloat(restaurant.avgPrice) || 0;
+  if (cost > 0 && cost <= maxCost) {
+    return { restaurant, isBreakfastSpecific };
   }
+}
 
+// ✅ إذا فطور وما لقينا ضمن الميزانية → اختر الأرخص
+if (mealType === 'breakfast' && available.length > 0) {
+  const sorted = available
+    .map(r => ({
+      r,
+      cost: parseFloat(r.avgPrice) || 9999
+    }))
+    .sort((a, b) => a.cost - b.cost);
+
+  return { restaurant: sorted[0].r, isBreakfastSpecific: true };
+}
+
+
+  // ❌ لا نسوي fallback عشوائي للفطور أبداً
+  if (mealType === 'breakfast') return null;
+
+  // ✔ الغداء والعشاء ممكن fallback
   if (available.length > 0) {
     return { restaurant: available[0], isBreakfastSpecific };
   }
 
   return null;
 }
+
 
 export const appRouter = router({
   system: systemRouter,
@@ -969,10 +1012,21 @@ export const appRouter = router({
             }
           };
 
-          for (const slot of dayTemplate) {
-            if (dayItems.length >= MAX_ITEMS_PER_DAY) break;
+for (const slot of dayTemplate) {
+  if (dayItems.length >= MAX_ITEMS_PER_DAY) break;
+// ✅ إذا الميزانية المتبقية قليلة (مثلاً <= 250) لا نزيد عن 5 عناصر
+if (remainingAfterAccommodation <= 250 && dayItems.length >= 5) {
+  break;
+}
 
-            if (slot.type === 'meal' && slot.mealType) {
+// ✅ لا توقف اليوم إلا إذا الميزانية انتهت ووصلنا حد أدنى منطقي من العناصر
+if (remainingActivityBudget <= 10 && mealCount > 0 && dayItems.length >= 5) {
+  break;
+}
+
+
+  if (slot.type === 'meal' && slot.mealType) {
+
               if (!shouldAddMeals || currentDayIsLowBudget) {
                 fillActivitySlot(slot);
                 continue;
@@ -989,6 +1043,15 @@ export const appRouter = router({
 
               const { restaurant, isBreakfastSpecific } = result;
               let mealCost = parseFloat(restaurant.avgPrice) || 0;
+// ✅ الفطور إلزامي حتى لو تجاوز الميزانية
+if (mealCost > remainingActivityBudget) {
+  if (slot.mealType === 'breakfast') {
+    // اسمح بتجاوز الميزانية للفطور
+  } else {
+    fillActivitySlot(slot);
+    continue;
+  }
+}
 
               if (slot.mealType === 'breakfast' && !isBreakfastSpecific) {
                 mealCost = Math.round(mealCost * 0.7);
@@ -1026,9 +1089,13 @@ export const appRouter = router({
           }
 
           let insufficientNote: string | null = null;
-          if (activityCount < MIN_ACTIVITIES_PER_DAY) {
-            insufficientNote = 'لا توجد أنشطة كافية لهذه المدينة';
-          }
+        const MIN_DAILY_ITEMS = 5;
+
+if (dayItems.length < MIN_DAILY_ITEMS) {
+  insufficientNote = 'لا توجد أنشطة كافية لهذه المدينة ضمن الميزانية المحددة';
+}
+
+
           let mealNote: string | null = null;
           const minMeals = 2;
           if (shouldAddMeals && mealCount < minMeals) {

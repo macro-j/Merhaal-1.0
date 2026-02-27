@@ -52,6 +52,55 @@ function minutesToTime(minutes: number): string {
  * ظهرًا (afternoon): 12:00–16:00
  * مساءً (evening): after 16:00
  */
+// 🔥 Period rules: منع أنشطة غير مناسبة حسب الوقت
+function isActivityAllowedInPeriod(activity: any, period: string): boolean {
+  const name = (activity.name || '').toString();
+  const category = (activity.category || '').toString();
+
+  const isAdventure =
+    category.includes('مغام') ||
+    name.includes('حافة العالم');
+
+  const isMuseumLike =
+    category.includes('سيا') ||
+    category.includes('ثق') ||
+    name.includes('متحف') ||
+    name.includes('قصر');
+
+  const isMallEntertainment =
+    category.includes('تسو') ||
+    category.includes('ترفي') ||
+    name.includes('مول') ||
+    name.includes('بوليفارد') ||
+    name.includes('واجهة');
+
+  // صباحًا: امنع مغامرات بعيدة (مثل حافة العالم)
+  if (period === 'صباحًا') {
+    if (isAdventure) return false;
+    return true;
+  }
+
+  // ظهرًا: عادي كل شيء
+  if (period === 'ظهرًا') {
+    return true;
+  }
+
+  // مساءً: امنع المتاحف/التراث + امنع المغامرات البعيدة
+  if (period === 'مساءً') {
+    if (isMuseumLike) return false;
+    if (isAdventure) return false;
+    return true;
+  }
+
+  return true;
+}
+
+/**
+ * Derive period from time (HH:MM format)
+ * صباحًا (morning): before 12:00
+ * ظهرًا (afternoon): 12:00–16:00
+ * مساءً (evening): after 16:00
+ */
 function derivePeriod(time: string): string {
   const [hoursStr] = time.split(':');
   const hours = parseInt(hoursStr, 10);
@@ -211,10 +260,14 @@ function findAffordableRestaurant(
 
 let available = candidates.filter(r => !usedIds.has(r.id));
 
-// إذا فطور وما فيه خيارات غير مستخدمة → اسمح بالتكرار
-if (mealType === 'breakfast' && available.length === 0) {
-  available = candidates;
+// إذا ما فيه خيارات غير مستخدمة → اسمح بإعادة الاستخدام
+if (available.length === 0) {
+ available = candidates.filter(r => hasMealTag(r, 'breakfast') || hasMealTag(r, 'cafe'));
+
 }
+
+if (available.length === 0) return null;
+
 
 
   if (available.length === 0) return null;
@@ -561,10 +614,23 @@ export const appRouter = router({
         } else {
           qualityLevel = 'عالية';
         }
+// 🎯 تحديد عدد الوجبات حسب مستوى الجودة
+const mealsPerDay =
+  input.mealsPerDay ??
+  (qualityLevel === 'عالية' ? 3 : qualityLevel === 'متوسطة' ? 2 : 1);
 
-        const mealsPerDay = input.mealsPerDay || 2;
-        const restaurantPriceRange = qualityLevel === 'عالية' ? 'فاخر' : qualityLevel === 'متوسطة' ? 'متوسط' : 'اقتصادي';
-        const usedRestaurantIds = new Set<number>();
+// نضيف وجبات فقط إذا فيه مطاعم كافية
+const shouldAddMeals = restaurants.length >= input.days * mealsPerDay;
+
+// نطاق سعر المطاعم حسب الجودة
+const restaurantPriceRange =
+  qualityLevel === 'عالية' ? 'فاخر'
+  : qualityLevel === 'متوسطة' ? 'متوسط'
+  : 'اقتصادي';
+
+
+const usedRestaurantIds = new Set<number>();
+
 
         // Select accommodation early to compute remaining budget
         const preferredClass = input.accommodationType === 'فاخر' ? 'luxury' : 
@@ -574,7 +640,10 @@ export const appRouter = router({
         const classOrderByPreference: Array<'luxury' | 'mid' | 'economy'> = ['luxury', 'mid', 'economy'];
         const preferredIndex = classOrderByPreference.indexOf(preferredClass);
         const orderedClasses = classOrderByPreference.slice(preferredIndex).concat(classOrderByPreference.slice(0, preferredIndex));
-        
+        // ✅ Keep budget for experiences (meals + activities) after accommodation
+const MIN_REMAINING_AFTER_STAY = Math.max(120, Math.floor(dailyBudget * 0.20)); // 20% or at least 120 SAR
+const maxAffordableNight = Math.max(dailyBudget - MIN_REMAINING_AFTER_STAY, 0);
+
         let selectedAccommodation: any = null;
         let accommodationSelectionNote: string | null = null;
         
@@ -585,13 +654,13 @@ export const appRouter = router({
           for (const accommodation of candidateAccommodations) {
             const priceInfo = parsePriceRangeToMinMax(accommodation.priceRange || undefined);
             
-            // If we have price info, check if minimum price is within daily budget
-            if (priceInfo.min !== undefined) {
-              if (priceInfo.min > dailyBudget) {
-                // This accommodation is too expensive, skip it
-                continue;
-              }
-            }
+// ✅ If we have price info, ensure we keep room for meals/activities
+if (priceInfo.min !== undefined) {
+  if (priceInfo.min > maxAffordableNight) {
+    continue;
+  }
+}
+
             
             // Found an affordable accommodation
             selectedAccommodation = accommodation;
@@ -823,10 +892,12 @@ export const appRouter = router({
 
         const plan: Array<any> = [];
         let remainingTripBudget = input.budget;
-        const shouldAddMeals = restaurants.length > 0;
+
 
         const MIN_ACTIVITIES_PER_DAY = 3;
-        const MAX_ITEMS_PER_DAY = 8;
+const MAX_ITEMS_PER_DAY =
+  qualityLevel === 'عالية' ? 6 :
+  qualityLevel === 'متوسطة' ? 6 : 8;
 
         console.log(`[PlanGen] availableActivities=${filteredActivities.length}, excludedRestaurantActivities=${excludedRestaurantActivityCount}, restaurants=${restaurants.length}, mealsPerDay=${mealsPerDay}`);
 
@@ -881,14 +952,53 @@ export const appRouter = router({
           }
           return cost;
         };
+// ✅ Helper: هل النشاط مناسب للفترة الزمنية؟
+function isActivityAllowedInPeriod(activity: any, period: string): boolean {
+  // إذا ما عنده وقت محدد (tags/metadata) نخليه يمر
+  const tags: string[] = Array.isArray(activity?.tags) ? activity.tags : [];
 
-        const pickActivityForSlot = (
-          budget: number,
-          isLowBudget: boolean,
-          interests: string[],
-        ): { activity: any; cost: number } | null => {
-          let candidates = allShuffled.filter(a => !usedActivityIds.has(a.id));
-          if (candidates.length === 0) return null;
+  // لو عندك في الداتا tags زي: "time:morning" / "time:afternoon" / "time:evening"
+  const timeTags = tags
+    .filter(t => typeof t === 'string' && t.startsWith('time:'))
+    .map(t => t.replace('time:', '').toLowerCase());
+
+  // ما فيه تقييد → مسموح بأي وقت
+  if (timeTags.length === 0) return true;
+
+  // تحويل period العربي لمفتاح إنجليزي
+  const periodKey =
+    period === 'صباحًا' ? 'morning' :
+    period === 'ظهرًا' ? 'afternoon' :
+    'evening';
+
+  return timeTags.includes(periodKey);
+}
+const pickActivityForSlot = (
+  budget: number,
+  isLowBudget: boolean,
+  interests: string[],
+  usedActivityIdsForDay: Set<number>,
+  period: string
+): { activity: any; cost: number } | null => {
+
+let candidates = allShuffled
+  .filter(a => !usedActivityIdsForDay.has(a.id))
+  .sort((a, b) => {
+    const usageA = activityUsageCount.get(a.id) || 0;
+    const usageB = activityUsageCount.get(b.id) || 0;
+    return usageA - usageB; // الأقل استخدامًا أولاً
+  });
+
+if (candidates.length === 0) return null;
+// ✅ A-4: فلترة الأنشطة حسب الفترة (صباح/ظهر/مساء)
+// 🔥 فلترة ناعمة حسب الفترة (Soft)
+const periodFiltered = candidates.filter(a =>
+  isActivityAllowedInPeriod(a, period)
+);
+
+// إذا فيه مرشحين مناسبين للفترة استخدمهم
+// إذا لا، لا تصفّر اليوم — استخدم القائمة الأصلية
+candidates = periodFiltered.length > 0 ? periodFiltered : candidates;
 
           if (isLowBudget) {
             candidates = candidates.filter(a => {
@@ -901,6 +1011,26 @@ export const appRouter = router({
           const scored = candidates.map(a => {
             const cost = getActivityCost(a);
             let score = 0;
+            // 🎯 تفضيل حسب الفترة الزمنية
+const category = (a.category || '').toString();
+
+if (period === 'صباحًا') {
+  if (category.includes('ثق') || category.includes('سيا') || category.includes('تراث')) {
+    score += 15; // صباح ثقافة/تراث
+  }
+  if (category.includes('تسو') || category.includes('ترفي')) {
+    score -= 10; // تقليل المول صباحًا
+  }
+}
+
+if (period === 'مساءً') {
+  if (category.includes('تسو') || category.includes('ترفي')) {
+    score += 15; // مساء ترفيه
+  }
+  if (category.includes('ثق') || category.includes('سيا')) {
+    score -= 10; // تقليل متاحف مساءً
+  }
+}
             if (interests.length > 0) {
               const actTags = [a.category, a.type, ...(a.tags || [])].filter(Boolean).map((t: string) => t.toLowerCase());
               const matchCount = interests.filter(i => actTags.some((t: string) => t.includes(i.toLowerCase()))).length;
@@ -912,12 +1042,17 @@ export const appRouter = router({
 
           scored.sort((a, b) => b.score - a.score);
 
-          for (const item of scored) {
-            if (item.cost <= budget || isLowBudget) {
-              usedActivityIds.add(item.activity.id);
-              return { activity: item.activity, cost: item.cost };
-            }
-          }
+for (const item of scored) {
+  // 🔥 تأكيد إضافي للفترة
+  if (!isActivityAllowedInPeriod(item.activity, period)) {
+    continue;
+  }
+
+  if (item.cost <= budget || isLowBudget) {
+    usedActivityIdsForDay.add(item.activity.id);
+    return { activity: item.activity, cost: item.cost };
+  }
+}
 
           return null;
         };
@@ -930,111 +1065,286 @@ export const appRouter = router({
           { nameAr: 'مشاهدة المناظر الطبيعية من نقطة ارتفاع', nameEn: 'View natural scenery from a viewpoint', category: 'طبيعة' },
           { nameAr: 'زيارة مكتبة عامة أو متحف بدخول مجاني', nameEn: 'Visit free public library or museum', category: 'ثقافة' },
         ];
+const activityUsageCount = new Map<number, number>();
+const usedActivityIdsForTrip = new Set<number>();
+for (let day = 1; day <= input.days; day++) {
+  const dayItems: Array<any> = [];
+const usedActivityIdsForDay = new Set<number>(); // يتصفّر كل يوم
+let freeActivitiesCount = 0;                     // يتصفّر كل يوم
 
-        for (let day = 1; day <= input.days; day++) {
-          const dayItems: Array<any> = [];
-          let remainingActivityBudget = Math.max(dailyBudget - accommodationCostPerNight, 0);
-          const currentDayIsLowBudget = isLowBudgetAfterStay;
+  // ✅ الميزانية بعد السكن
+  const baseDailyBudget = Math.max(dailyBudget - accommodationCostPerNight, 0);
 
-          if (remainingAfterAccommodation <= 0) {
-            budgetActivityNote = 'تمت إضافة أنشطة مجانية لأن ميزانية اليوم تذهب للسكن.';
-            const freeSlots = buildDayTemplate(2).filter(s => s.type === 'activity').slice(0, 3);
-            for (let i = 0; i < freeSlots.length; i++) {
-              const slot = freeSlots[i];
-              const ph = placeholderActivities[(day - 1 + i) % placeholderActivities.length];
-              dayItems.push({
-                startTime: minutesToTime(slot.start),
-                endTime: minutesToTime(slot.end),
-                period: derivePeriod(minutesToTime(slot.start)),
-                activity: ph.nameAr,
-                description: `نشاط مجاني في ${destination.nameAr}`,
-                type: ph.category, category: ph.category,
-                duration: '1 ساعة', cost: '0', budgetLevel: 'low', estimatedCost: 0,
-              });
-            }
-            console.log(`[PlanGen] Day ${day}: chosenActivities=${freeSlots.length}, chosenMeals=0 (budget exhausted by accommodation)`);
-            plan.push({
-              day, title: dayTitles[day - 1],
-              activities: dayItems, dayTotalCost: 0,
-              dayBudgetSummary: { dailyBudget, accommodationCostPerNight, remainingAfterAccommodation, activitiesCost: 0, foodCost: 0, dayItemsCost: 0, remainingAfterActivities: 0 },
-              budgetActivityNote,
-            });
-            continue;
-          }
+  // ✅ توزيع SaaS حسب الجودة (qualityLevel عندك: 'اقتصادية' | 'متوسطة' | 'عالية')
+  let dayBudgetMultiplier = 1;
+  if (qualityLevel === 'عالية') {
+    dayBudgetMultiplier = day === 1 ? 1.25 : 0.95;
+  } else if (qualityLevel === 'متوسطة') {
+    dayBudgetMultiplier = day === 1 ? 1.10 : 0.98;
+  }
 
-          const dayTemplate = buildDayTemplate(shouldAddMeals ? mealsPerDay : 2);
-          let activityCount = 0;
-          let mealCount = 0;
-          let placeholderIdx = (day - 1) * MIN_ACTIVITIES_PER_DAY;
+  const dayBudget = Math.floor(baseDailyBudget * dayBudgetMultiplier);
 
-          const fillActivitySlot = (slot: DaySlot) => {
-            const picked = pickActivityForSlot(remainingActivityBudget, currentDayIsLowBudget, input.interests || []);
-            if (picked) {
-              const { activity, cost: actCost } = picked;
-              const slotLength = slot.end - slot.start;
-              const rawDuration = parseDurationToMinutes(activity.duration);
-              const clampedDuration = Math.min(rawDuration, slotLength);
-              const actualEnd = slot.start + clampedDuration;
+  // ✅ فصل ميزانية الوجبات عن الأنشطة (مهم)
+  const mealBudget = shouldAddMeals ? Math.floor(dayBudget * 0.40) : 0;      // 40% للوجبات
+  let remainingMealBudget = mealBudget;
 
-              const durationHours = clampedDuration / 60;
-              const durationLabel = clampedDuration !== rawDuration
-                ? (clampedDuration >= 60 ? `${Math.round(durationHours)} ساعة` : `${clampedDuration} دقيقة`)
-                : (activity.duration || '2 ساعة');
+  const activityBudget = Math.max(dayBudget - mealBudget, 0);               // الباقي للأنشطة
+  let remainingActivityBudget = activityBudget;
 
-              dayItems.push({
-                activityId: activity.id,
-                startTime: minutesToTime(slot.start),
-                endTime: minutesToTime(actualEnd),
-                period: derivePeriod(minutesToTime(slot.start)),
-                activity: activity.name,
-                description: activity.details || `استمتع بـ${activity.name} في ${destination.nameAr}`,
-                type: activity.type, category: activity.category,
-                duration: durationLabel,
-                cost: activity.cost, budgetLevel: activity.budgetLevel,
-                estimatedCost: actCost,
-              });
+  const currentDayIsLowBudget = isLowBudgetAfterStay;
 
-              remainingActivityBudget = Math.max(remainingActivityBudget - actCost, 0);
-              activityCount++;
-            } else {
-              const ph = placeholderActivities[placeholderIdx % placeholderActivities.length];
-              placeholderIdx++;
-              dayItems.push({
-                startTime: minutesToTime(slot.start),
-                endTime: minutesToTime(slot.end),
-                period: derivePeriod(minutesToTime(slot.start)),
-                activity: ph.nameAr,
-                description: `نشاط مجاني في ${destination.nameAr}`,
-                type: ph.category, category: ph.category,
-                duration: '1 ساعة', cost: '0', budgetLevel: 'low', estimatedCost: 0,
-              });
-              activityCount++;
-            }
-          };
+
+
+  if (remainingAfterAccommodation <= 0) {
+    budgetActivityNote = 'تمت إضافة أنشطة مجانية لأن ميزانية اليوم تذهب للسكن.';
+    const freeSlots = buildDayTemplate(2)
+      .filter(s => s.type === 'activity')
+      .slice(0, 3);
+
+    for (let i = 0; i < freeSlots.length; i++) {
+      const slot = freeSlots[i];
+      const ph = placeholderActivities[(day - 1 + i) % placeholderActivities.length];
+
+      dayItems.push({
+        startTime: minutesToTime(slot.start),
+        endTime: minutesToTime(slot.end),
+        period: derivePeriod(minutesToTime(slot.start)),
+        activity: ph.nameAr,
+        description: `نشاط مجاني في ${destination.nameAr}`,
+        type: ph.category,
+        category: ph.category,
+        duration: '1 ساعة',
+        cost: '0',
+        budgetLevel: 'low',
+        estimatedCost: 0,
+      });
+    }
+
+    plan.push({
+      day,
+      title: dayTitles[day - 1],
+      activities: dayItems,
+      dayTotalCost: 0,
+      dayBudgetSummary: {
+        dailyBudget,
+        accommodationCostPerNight,
+        remainingAfterAccommodation,
+        activitiesCost: 0,
+        foodCost: 0,
+        dayItemsCost: 0,
+        remainingAfterActivities: 0,
+      },
+      budgetActivityNote,
+    });
+
+    continue;
+  }
+
+  const dayTemplate = buildDayTemplate(shouldAddMeals ? mealsPerDay : 2);
+
+  // 🔥 Force breakfast slot first if restaurants exist
+  if (shouldAddMeals) {
+    dayTemplate.sort((a, b) => {
+      if (a.type === 'meal' && a.mealType === 'breakfast') return -1;
+      if (b.type === 'meal' && b.mealType === 'breakfast') return 1;
+      return 0;
+    });
+  }
+
+  let activityCount = 0;
+  let mealCount = 0;
+  let placeholderIdx = (day - 1) * MIN_ACTIVITIES_PER_DAY;
+// ✅ SaaS Rule: حد أقصى للأنشطة المجانية في اليوم
+const maxFreeActivitiesPerDay =
+  qualityLevel === 'عالية' ? 1 :
+  qualityLevel === 'متوسطة' ? 2 : 3;
+
+
+
+const fillActivitySlot = (slot: DaySlot) => {
+const period = derivePeriod(minutesToTime(slot.start));
+
+const picked = pickActivityForSlot(
+  remainingActivityBudget,
+  currentDayIsLowBudget,
+  input.interests || [],
+  usedActivityIdsForDay,
+  period
+);
+
+  // لو ما فيه نشاط مناسب → لا نضيف شيء
+if (!picked) {
+  // fallback: حاول نختار أي نشاط يناسب الميزانية
+const fallback = allShuffled.find(a =>
+  !usedActivityIdsForDay.has(a.id) &&
+  !usedActivityIdsForTrip.has(a.id) &&   // 🔥 منع تكرار عبر الرحلة
+  (parseFloat(a.cost) || 0) <= remainingActivityBudget
+);
+
+if (!fallback) {
+  // آخر حل: أضف نشاط مجاني بسيط
+  dayItems.push({
+    startTime: minutesToTime(slot.start),
+    endTime: minutesToTime(slot.end),
+    period: derivePeriod(minutesToTime(slot.start)),
+    activity: 'جولة حرة',
+    description: `استمتع بوقت حر في ${destination.nameAr}`,
+    type: 'حر',
+    category: 'حر',
+    duration: '1 ساعة',
+    cost: '0',
+    budgetLevel: 'low',
+    estimatedCost: 0,
+  });
+freeActivitiesCount++;
+  activityCount++;
+  return;
+}
+
+  const fallbackCost = parseFloat(fallback.cost) || 0;
+
+  dayItems.push({
+    activityId: fallback.id,
+    startTime: minutesToTime(slot.start),
+    endTime: minutesToTime(slot.end),
+    period: derivePeriod(minutesToTime(slot.start)),
+    activity: fallback.name,
+    description:
+      fallback.details ||
+      `استمتع بـ${fallback.name} في ${destination.nameAr}`,
+    type: fallback.type,
+    category: fallback.category,
+    duration: fallback.duration || '1 ساعة',
+    cost: fallback.cost,
+    budgetLevel: fallback.budgetLevel,
+    estimatedCost: fallbackCost,
+  });
+
+  usedActivityIdsForDay.add(fallback.id);
+usedActivityIdsForTrip.add(fallback.id);
+  remainingActivityBudget = Math.max(
+    remainingActivityBudget - fallbackCost,
+    0
+  );
+
+  activityCount++;
+  return;
+}
+
+  const { activity, cost: actCost } = picked;
+// ✅ منع تكرار نفس النشاط عبر أيام الرحلة
+if (usedActivityIdsForTrip.has(activity.id)) {
+  return;
+}
+  // 🚫 لا نسمح بتجاوز ميزانية الأنشطة
+  if (actCost > remainingActivityBudget) {
+    return;
+  }
+
+  // ✅ حد أقصى للأنشطة المجانية
+  if (actCost === 0) {
+    if (freeActivitiesCount >= maxFreeActivitiesPerDay) {
+      return;
+    }
+    freeActivitiesCount++;
+  }
+// 🎯 لا نكرر نفس الفئة أكثر من مرتين في اليوم
+const sameCategoryCount = dayItems.filter(
+  d => d.category === activity.category
+).length;
+
+if (sameCategoryCount >= 3) {
+  return;
+}
+// 🎯 لا نسمح بنفس الفئة مرتين متتاليتين
+const lastItem = dayItems[dayItems.length - 1];
+if (lastItem && lastItem.category === activity.category) {
+  return;
+}
+
+ const slotLength = slot.end - slot.start;
+const rawDuration = parseDurationToMinutes(activity.duration);
+
+// 🚫 لا نسمح بنشاط أطول من 3 ساعات داخل الجدول اليومي العادي
+if (rawDuration > 180) {
+  return;
+}
+let clampedDuration = Math.min(rawDuration, slotLength);
+
+// 👑 في الباقة الفاخرة نزيد مدة النشاط قليلاً
+if (qualityLevel === 'عالية') {
+  clampedDuration = Math.min(clampedDuration + 30, slotLength);
+}
+
+const actualEnd = slot.start + clampedDuration;
+
+
+  dayItems.push({
+    activityId: activity.id,
+    startTime: minutesToTime(slot.start),
+    endTime: minutesToTime(actualEnd),
+    period: derivePeriod(minutesToTime(slot.start)),
+    activity: activity.name,
+    description:
+      activity.details ||
+      `استمتع بـ${activity.name} في ${destination.nameAr}`,
+    type: activity.type,
+    category: activity.category,
+    duration: activity.duration || '1 ساعة',
+    cost: activity.cost,
+    budgetLevel: activity.budgetLevel,
+    estimatedCost: actCost,
+  });
+
+  // 🔥 هذا السطر المهم لمنع التكرار داخل نفس اليوم
+  usedActivityIdsForDay.add(activity.id);
+  usedActivityIdsForTrip.add(activity.id);
+activityUsageCount.set(
+  activity.id,
+  (activityUsageCount.get(activity.id) || 0) + 1
+);
+
+  remainingActivityBudget = Math.max(
+    remainingActivityBudget - actCost,
+    0
+  );
+
+  activityCount++;
+};
+
+
 
 for (const slot of dayTemplate) {
-  if (dayItems.length >= MAX_ITEMS_PER_DAY) break;
-// ✅ إذا الميزانية المتبقية قليلة (مثلاً <= 250) لا نزيد عن 5 عناصر
-if (remainingAfterAccommodation <= 250 && dayItems.length >= 5) {
-  break;
-}
+if (dayItems.length >= 6) break;
+  // ✅ إذا الميزانية المتبقية بعد السكن قليلة لا نبالغ بعدد العناصر
+  if (remainingAfterAccommodation <= 250 && dayItems.length >= 5) {
+    break;
+  }
 
-// ✅ لا توقف اليوم إلا إذا الميزانية انتهت ووصلنا حد أدنى منطقي من العناصر
-if (remainingActivityBudget <= 10 && mealCount > 0 && dayItems.length >= 5) {
-  break;
-}
+  // ✅ لا نوقف اليوم إلا إذا:
+  // - ميزانية الأنشطة انتهت تقريبًا
+  // - وميزانية الوجبات انتهت تقريبًا
+  // - وأضفنا وجبة واحدة على الأقل
+  // - وعدد العناصر منطقي
 
 
   if (slot.type === 'meal' && slot.mealType) {
 
-              if (!shouldAddMeals || currentDayIsLowBudget) {
-                fillActivitySlot(slot);
-                continue;
-              }
+    if (!shouldAddMeals || currentDayIsLowBudget) {
+      fillActivitySlot(slot);
+      continue;
+    }
 
-              const result = findAffordableRestaurant(
-                restaurants, slot.mealType, remainingActivityBudget, usedRestaurantIds, restaurantPriceRange
-              );
+    const result = findAffordableRestaurant(
+      restaurants,
+      slot.mealType,
+      remainingMealBudget,
+      usedRestaurantIds,
+      restaurantPriceRange
+    );
+
+
 
               if (!result) {
                 fillActivitySlot(slot);
@@ -1044,7 +1354,7 @@ if (remainingActivityBudget <= 10 && mealCount > 0 && dayItems.length >= 5) {
               const { restaurant, isBreakfastSpecific } = result;
               let mealCost = parseFloat(restaurant.avgPrice) || 0;
 // ✅ الفطور إلزامي حتى لو تجاوز الميزانية
-if (mealCost > remainingActivityBudget) {
+if (mealCost > remainingMealBudget) {
   if (slot.mealType === 'breakfast') {
     // اسمح بتجاوز الميزانية للفطور
   } else {
@@ -1081,15 +1391,14 @@ if (mealCost > remainingActivityBudget) {
               });
 
               usedRestaurantIds.add(restaurant.id);
-              remainingActivityBudget = Math.max(remainingActivityBudget - mealCost, 0);
-              mealCount++;
+remainingMealBudget = Math.max(remainingMealBudget - mealCost, 0);              mealCount++;
             } else if (slot.type === 'activity') {
               fillActivitySlot(slot);
             }
           }
 
           let insufficientNote: string | null = null;
-        const MIN_DAILY_ITEMS = 5;
+        const MIN_DAILY_ITEMS = 2;
 
 if (dayItems.length < MIN_DAILY_ITEMS) {
   insufficientNote = 'لا توجد أنشطة كافية لهذه المدينة ضمن الميزانية المحددة';
@@ -1107,7 +1416,27 @@ if (dayItems.length < MIN_DAILY_ITEMS) {
             const bMin = parseInt(b.startTime.split(':')[0]) * 60 + parseInt(b.startTime.split(':')[1]);
             return aMin - bMin;
           });
+// 🔥 ضمان الحد الأدنى من الأنشطة (غير المطاعم)
+const MIN_ACTIVITIES_REQUIRED = 5;
 
+while (dayItems.filter(i => i.type !== 'مطاعم').length < MIN_ACTIVITIES_REQUIRED) {
+  const ph = placeholderActivities[placeholderIdx % placeholderActivities.length];
+  placeholderIdx++;
+
+  dayItems.push({
+    startTime: '16:00',
+    endTime: '17:00',
+    period: 'مساءً',
+    activity: ph.nameAr,
+    description: `نشاط إضافي في ${destination.nameAr}`,
+    type: ph.category,
+    category: ph.category,
+    duration: '1 ساعة',
+    cost: '0',
+    budgetLevel: 'low',
+    estimatedCost: 0,
+  });
+}
           // --- Budget summary (source of truth: sum of estimatedCost on each item) ---
           const foodCost = dayItems
             .filter(a => a.mealType)

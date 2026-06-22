@@ -1,4 +1,3 @@
-import { useAuth } from "@/hooks/useAuth";
 import AppShell from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +7,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { trpc } from "@/lib/trpc";
 import { Loader2, MapPin, Calendar as CalendarIcon, DollarSign, Heart, Eye, ChevronLeft, ChevronRight, Check, Hotel, CalendarDays, UtensilsCrossed } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { getLocalizedName, getDestinationSubtitle, sortDestinations } from "@/lib/utils";
 import { destinationImages } from "@/constants/destinationImages";
+import { DESTINATIONS_CATALOG } from "@/constants/destinationsCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { generateTrip } from "@/lib/gemini";
+import { saveTrip } from "@/lib/tripsStorage";
 
 const TOTAL_STEPS = 5;
 
@@ -27,11 +28,24 @@ const generatingMessages = [
 ];
 
 export default function PlanTrip() {
-  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const { language, isRTL } = useLanguage();
-  const { data: rawDestinations, isLoading: destinationsLoading } = trpc.destinations.list.useQuery();
-  const destinations = useMemo(() => rawDestinations ? sortDestinations(rawDestinations) : undefined, [rawDestinations]);
+  const rawDestinations = useMemo(
+    () =>
+      DESTINATIONS_CATALOG.map((dest, index) => ({
+        id: index + 1,
+        slug: dest.slug,
+        nameAr: dest.name,
+        nameEn: dest.nameEn,
+        titleAr: dest.subtitle,
+        titleEn: dest.subtitleEn,
+        descriptionAr: dest.description,
+        descriptionEn: dest.descriptionEn,
+      })),
+    []
+  );
+  const destinations = useMemo(() => sortDestinations(rawDestinations), [rawDestinations]);
+  const destinationsLoading = false;
 
   const [step, setStep] = useState(1);
   const [selectedDestination, setSelectedDestination] = useState<number | null>(null);
@@ -73,35 +87,11 @@ export default function PlanTrip() {
 
   const todayDate = useMemo(() => new Date(), []);
 
-  const MIN_LOADING_MS = 1300;
-
-  const finishLoading = (callback: () => void) => {
-    const elapsed = Date.now() - loadingStartRef.current;
-    const remaining = Math.max(0, MIN_LOADING_MS - elapsed);
-    setTimeout(() => {
-      setShowLoading(false);
-      callback();
-    }, remaining);
-  };
-
-  const createTripMutation = trpc.trips.create.useMutation({
-    onSuccess: (data) => {
-      finishLoading(() => {
-        toast.success(language === "ar" ? "تم إنشاء الرحلة بنجاح!" : "Trip created successfully!");
-        setLocation(`/trip/${data.id}`);
-      });
-    },
-    onError: (error) => {
-      finishLoading(() => {
-        toast.error((language === "ar" ? "حدث خطأ: " : "Error: ") + error.message);
-      });
-    },
-  });
-
-  const isGenerating = createTripMutation.isPending || showLoading;
+  const [isGenerating, setIsGenerating] = useState(false);
+  const isGeneratingUI = isGenerating || showLoading;
 
   useEffect(() => {
-    if (createTripMutation.isPending) {
+    if (isGenerating) {
       loadingStartRef.current = Date.now();
       setShowLoading(true);
       setMsgIndex(0);
@@ -117,7 +107,7 @@ export default function PlanTrip() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [createTripMutation.isPending, showLoading]);
+  }, [isGenerating, showLoading]);
 
   const interestOptions = [
     "ثقافة وتراث",
@@ -135,13 +125,7 @@ export default function PlanTrip() {
     );
   };
 
-  const tierInfo: Record<string, { maxDays: number; maxActivities: number; maxTrips: number }> = {
-    free: { maxDays: 1, maxActivities: 3, maxTrips: 1 },
-    smart: { maxDays: 10, maxActivities: 5, maxTrips: 3 },
-    professional: { maxDays: 999, maxActivities: 999, maxTrips: 999 },
-  };
-
-  const currentTier = tierInfo[user?.tier || "free"];
+  const currentTier = { maxDays: 999, maxActivities: 999, maxTrips: 999 };
 
   const stepLabels = [
     { ar: "الوجهة", en: "Destination", icon: MapPin },
@@ -186,32 +170,65 @@ export default function PlanTrip() {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleGenerate = () => {
-    if (!selectedDestination) return;
+  const handleGenerate = async () => {
+    if (!selectedDestination || !selectedDest) return;
 
-    const tier = user?.tier || "free";
-    if (tier === "free" && days > 1) {
-      toast.error(language === "ar"
-        ? "الباقة المجانية تسمح بيوم واحد فقط. قم بترقية باقتك للمزيد!"
-        : "Free plan allows only 1 day. Upgrade for more!");
-      return;
-    }
-    if (tier === "smart" && days > 10) {
-      toast.error(language === "ar"
-        ? "الباقة الذكية تسمح بـ 10 أيام كحد أقصى."
-        : "Smart plan allows up to 10 days.");
-      return;
-    }
+    const destinationName = getLocalizedName(
+      selectedDest.nameAr,
+      selectedDest.nameEn,
+      language
+    );
+    const companions =
+      language === "ar"
+        ? `إقامة ${accommodationType}، ${mealsPerDay} وجبات يوميًا`
+        : `${accommodationType} stay, ${mealsPerDay} meals/day`;
+    const interestsLabel =
+      interests.length > 0
+        ? interests.join(language === "ar" ? "، " : ", ")
+        : language === "ar"
+          ? "عام"
+          : "general";
 
-    createTripMutation.mutate({
-      destinationId: selectedDestination,
-      days,
-      budget,
-      interests,
-      accommodationType,
-      startDate: toISODateString(startDate) || undefined,
-      mealsPerDay,
-    });
+    setIsGenerating(true);
+    loadingStartRef.current = Date.now();
+
+    try {
+      const plan = await generateTrip(
+        destinationName,
+        days,
+        budget,
+        companions,
+        interestsLabel
+      );
+
+      const savedTrip = {
+        ...plan,
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        budget,
+        companions,
+        interests,
+        startDate: toISODateString(startDate) || undefined,
+        dayCount: days,
+      };
+
+      saveTrip(savedTrip);
+
+      toast.success(
+        language === "ar" ? "تم إنشاء خطتك وحفظها بنجاح!" : "Your plan was created and saved!"
+      );
+      setLocation("/my-plans");
+    } catch (error) {
+      console.error("[generateTrip]", error);
+      toast.error(
+        language === "ar"
+          ? "تعذّر توليد الخطة. تحقق من الاتصال وحاول مرة أخرى."
+          : "Could not generate the plan. Check your connection and try again."
+      );
+    } finally {
+      setIsGenerating(false);
+      setShowLoading(false);
+    }
   };
 
   const selectedDest = destinations?.find((d) => d.id === selectedDestination);
@@ -677,13 +694,13 @@ export default function PlanTrip() {
             <Button
               type="button"
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGeneratingUI}
               data-testid="button-generate-desktop"
             >
-              {isGenerating ? (
+              {isGeneratingUI ? (
                 <>
                   <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                  {language === "ar" ? "جاري التوليد..." : "Generating..."}
+                  {language === "ar" ? "جاري تصميم رحلتك الذكية..." : "Designing your smart trip..."}
                 </>
               ) : (
                 language === "ar" ? "توليد الخطة" : "Generate Plan"
@@ -730,14 +747,14 @@ export default function PlanTrip() {
             <Button
               type="button"
               onClick={handleGenerate}
-              disabled={isGenerating}
+              disabled={isGeneratingUI}
               className="flex-1"
               data-testid="button-generate-mobile"
             >
-              {isGenerating ? (
+              {isGeneratingUI ? (
                 <>
                   <Loader2 className="w-4 h-4 me-2 animate-spin" />
-                  {language === "ar" ? "جاري التوليد..." : "Generating..."}
+                  {language === "ar" ? "جاري تصميم رحلتك الذكية..." : "Designing your smart trip..."}
                 </>
               ) : (
                 language === "ar" ? "توليد الخطة" : "Generate Plan"
@@ -747,7 +764,7 @@ export default function PlanTrip() {
         </div>
       </div>
 
-      {isGenerating && (
+      {isGeneratingUI && (
         <div
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background"
           data-testid="overlay-generating"
@@ -759,7 +776,7 @@ export default function PlanTrip() {
             </div>
 
             <h2 className="text-xl font-bold" data-testid="text-generating-title">
-              {language === "ar" ? "جاري توليد خطتك..." : "Generating your plan..."}
+              {language === "ar" ? "جاري تصميم رحلتك الذكية..." : "Designing your smart trip..."}
             </h2>
 
             <p

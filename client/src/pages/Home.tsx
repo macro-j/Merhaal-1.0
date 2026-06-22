@@ -1,4 +1,3 @@
-import { useAuth } from "@/hooks/useAuth";
 import { useInView } from "@/hooks/useInView";
 import { Button } from "@/components/ui/button";
 import { CityDetailModal } from "@/components/CityDetailModal";
@@ -10,7 +9,6 @@ import { DESTINATIONS_CATALOG, type DestinationCatalogItem } from "@/constants/d
 import { getLocalizedName } from "@/lib/utils";
 
 export default function Home() {
-  let { isAuthenticated } = useAuth();
   const { language, isRTL } = useLanguage();
   const [selectedDestination, setSelectedDestination] = useState<DestinationCatalogItem | null>(null);
   

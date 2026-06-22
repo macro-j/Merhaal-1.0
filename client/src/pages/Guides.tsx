@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Navbar } from "@/components/Navbar";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { useAuth } from "@/hooks/useAuth";
-import { MapPin, Star, Search, Lock, X } from "lucide-react";
+import { MapPin, Star, Search } from "lucide-react";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { toast } from "sonner";
 
 const tourGuides = [
   {
@@ -57,16 +56,9 @@ const tourGuides = [
   },
 ];
 
-type ModalType = "login" | "upgrade" | null;
-
 export default function Guides() {
   const { language, isRTL } = useLanguage();
-  const { isAuthenticated, user } = useAuth();
-  const [, setLocation] = useLocation();
   const [searchQuery, setSearchQuery] = useState("");
-  const [modalType, setModalType] = useState<ModalType>(null);
-
-  const isPro = isAuthenticated && user?.tier === "professional";
 
   const content = {
     ar: {
@@ -74,76 +66,39 @@ export default function Guides() {
       heroSubtitle: "خبراء محليون لتجربة أفضل",
       searchPlaceholder: "ابحث باسم المرشد...",
       viewProfile: "عرض الملف",
-      proBadge: "Pro",
       footer: "© 2026 مرحال. جميع الحقوق محفوظة.",
       createdByPrefix: "تم التطوير بواسطة",
       createdByName: "محمد",
-      loginModal: {
-        title: "تسجيل الدخول مطلوب",
-        subtitle: "سجّل دخولك لعرض المرشدين",
-        primaryBtn: "تسجيل الدخول",
-        secondaryBtn: "إلغاء",
-      },
-      upgradeModal: {
-        title: "ميزة احترافية",
-        subtitle: "المرشدون متاحون لمشتركي Pro",
-        primaryBtn: "عرض الباقات",
-        secondaryBtn: "لاحقًا",
-      },
+      profileSoon: "ملف المرشد قادم قريبًا",
     },
     en: {
       heroTitle: "Guides",
       heroSubtitle: "Certified guides for your journey",
       searchPlaceholder: "Search by name...",
       viewProfile: "View Profile",
-      proBadge: "Pro",
       footer: "© 2026 Merhaal. All rights reserved.",
       createdByPrefix: "Created by",
       createdByName: "Mohammed",
-      loginModal: {
-        title: "Sign In Required",
-        subtitle: "Sign in to view guides",
-        primaryBtn: "Sign In",
-        secondaryBtn: "Cancel",
-      },
-      upgradeModal: {
-        title: "Pro Feature",
-        subtitle: "Guides are available for Pro members",
-        primaryBtn: "View Plans",
-        secondaryBtn: "Later",
-      },
+      profileSoon: "Guide profiles coming soon",
     },
   };
 
   const t = content[language];
 
   const handleViewProfile = () => {
-    if (!isAuthenticated) {
-      setModalType("login");
-      return;
-    }
-    if (!isPro) {
-      setModalType("upgrade");
-      return;
-    }
-    // Pro user - allow access (for now just close)
-    setModalType(null);
+    toast.info(t.profileSoon);
   };
 
-  const handleModalPrimary = () => {
-    if (modalType === "login") {
-      setLocation("/login");
-    } else if (modalType === "upgrade") {
-      setLocation("/packages");
-    }
-    setModalType(null);
-  };
-
-  const handleModalClose = () => {
-    setModalType(null);
-  };
-
-  const modalContent = modalType === "login" ? t.loginModal : t.upgradeModal;
+  const filteredGuides = tourGuides.filter((guide) => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      guide.name.toLowerCase().includes(query) ||
+      guide.nameEn.toLowerCase().includes(query) ||
+      guide.city.toLowerCase().includes(query) ||
+      guide.cityEn.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div
@@ -186,18 +141,11 @@ export default function Guides() {
       <section className="py-6 md:py-10">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 max-w-5xl mx-auto">
-            {tourGuides.map((guide) => (
+            {filteredGuides.map((guide) => (
               <div
                 key={guide.id}
                 className="relative bg-card rounded-2xl border border-border p-5 flex flex-col items-center text-center card-hover"
               >
-                {!isPro && (
-                  <div className="absolute top-3 end-3 flex items-center gap-1 bg-muted/80 text-muted-foreground text-xs font-medium px-2 py-1 rounded-full">
-                    <Lock className="w-3 h-3" />
-                    <span>{t.proBadge}</span>
-                  </div>
-                )}
-
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                   <span className="text-2xl font-semibold text-primary">
                     {guide.name.charAt(0)}
@@ -237,59 +185,19 @@ export default function Guides() {
       >
         <div className="container mx-auto px-4 text-center">
           <p className="text-xs text-muted-foreground/70">{t.footer}</p>
-          <p className="text-[10px] text-muted-foreground/50">{t.createdByPrefix}{' '}<a href="https://www.linkedin.com/in/alamri-mh" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground/80">{t.createdByName}</a></p>
+          <p className="text-[10px] text-muted-foreground/50">
+            {t.createdByPrefix}{" "}
+            <a
+              href="https://www.linkedin.com/in/alamri-mh"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-muted-foreground/80"
+            >
+              {t.createdByName}
+            </a>
+          </p>
         </div>
       </footer>
-
-      {modalType && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60"
-          onClick={handleModalClose}
-        >
-          <div
-            className="bg-card rounded-2xl p-6 w-full max-w-sm shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-end mb-2">
-              <button
-                onClick={handleModalClose}
-                className="w-8 h-8 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="text-center mb-6">
-              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Lock className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold text-foreground mb-2">
-                {modalContent.title}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {modalContent.subtitle}
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-3">
-              <Button
-                className="w-full h-12 rounded-full"
-                onClick={handleModalPrimary}
-              >
-                {modalContent.primaryBtn}
-              </Button>
-              <Button
-                variant="ghost"
-                className="w-full h-12 rounded-full"
-                onClick={handleModalClose}
-              >
-                {modalContent.secondaryBtn}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,7 +1,3 @@
-/**
- * Unified type exports
- * Import shared types from this single entry point.
- */
+// Shared client-side types (Phase 1: backend types removed)
 
-export type * from "../drizzle/schema";
-export * from "./_core/errors";
+export {};

@@ -1,63 +1,67 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
-import Home from './Home';
-import { ThemeProvider } from '@/contexts/ThemeContext';
-import { trpc } from "@/lib/trpc";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink } from "@trpc/client";
-import superjson from "superjson";
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect, beforeAll } from "vitest";
+import Home from "./Home";
+import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
-const queryClient = new QueryClient();
-
-const trpcClient = trpc.createClient({
-  links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
+beforeAll(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
     }),
-  ],
+  });
+
+  class MockIntersectionObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  Object.defineProperty(window, "IntersectionObserver", {
+    writable: true,
+    value: MockIntersectionObserver,
+  });
 });
 
 const renderWithProviders = (component: React.ReactElement) => {
   return render(
-    <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <ThemeProvider defaultTheme="light" switchable>
-          {component}
-        </ThemeProvider>
-      </QueryClientProvider>
-    </trpc.Provider>
+    <LanguageProvider>
+      <ThemeProvider defaultTheme="light" switchable>
+        {component}
+      </ThemeProvider>
+    </LanguageProvider>
   );
 };
 
-describe('Home Page', () => {
-  it('renders hero section with title', () => {
+describe("Home Page", () => {
+  it("renders hero section with title", () => {
     renderWithProviders(<Home />);
-    const elements = screen.getAllByText(/مرحال/);
-    expect(elements.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("text-hero-title")).toBeDefined();
   });
 
-  it('renders all four destinations', () => {
+  it("renders destination cities", () => {
     renderWithProviders(<Home />);
-    expect(screen.getByText(/الرياض/)).toBeDefined();
-    expect(screen.getByText(/جدة/)).toBeDefined();
-    expect(screen.getByText(/العلا/)).toBeDefined();
-    expect(screen.getByText(/أبها/)).toBeDefined();
+    expect(screen.getAllByText(/الرياض/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/جدة/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/العلا/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/أبها/).length).toBeGreaterThan(0);
   });
 
-  it('renders features section', () => {
+  it("renders features section", () => {
     renderWithProviders(<Home />);
-    const elements = screen.getAllByText(/مميزات مرحال/);
-    expect(elements.length).toBeGreaterThan(0);
+    expect(screen.getByTestId("text-features-title")).toBeDefined();
   });
 
-  it('renders navigation menu', () => {
+  it("renders navigation menu", () => {
     renderWithProviders(<Home />);
-    const homeLinks = screen.getAllByText(/الرئيسية/);
-    const featuresLinks = screen.getAllByText(/المميزات/);
-    const destinationsLinks = screen.getAllByText(/الوجهات/);
-    expect(homeLinks.length).toBeGreaterThan(0);
-    expect(featuresLinks.length).toBeGreaterThan(0);
-    expect(destinationsLinks.length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/الرئيسية/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/خطط رحلة/).length).toBeGreaterThan(0);
   });
 });

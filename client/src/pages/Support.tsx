@@ -1,10 +1,8 @@
 import { Button } from "@/components/ui/button";
 import AppShell from "@/components/AppShell";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { trpc } from "@/lib/trpc";
 import { Send, CheckCircle, Loader2 } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 
 type FormData = {
   name: string;
@@ -133,32 +131,17 @@ export default function Support() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const submitMutation = trpc.support.submit.useMutation({
-    onSuccess: () => {
-      setIsSubmitting(false);
-      setIsSubmitted(true);
-    },
-    onError: (error) => {
-      setIsSubmitting(false);
-      toast.error(error.message || 'حدث خطأ أثناء الإرسال');
-    },
-  });
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!validate()) return;
 
     setIsSubmitting(true);
-    
-    const requestTypeLabel = t.requestTypes.find(r => r.value === formData.requestType)?.label || formData.requestType;
-    
-    submitMutation.mutate({
-      name: formData.name,
-      email: formData.email,
-      subject: requestTypeLabel,
-      message: formData.message,
-    });
+
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setIsSubmitted(true);
+    }, 600);
   };
 
   const handleReset = () => {

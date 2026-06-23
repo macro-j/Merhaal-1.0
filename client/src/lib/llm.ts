@@ -51,8 +51,9 @@ const MIN_LOCATION_LENGTH = 4;
 const MIN_ACTIVITIES_PER_DAY = 3;
 const KNOWLEDGE_COVERAGE_THRESHOLD = 0.6;
 const VALID_TIMES: TripActivityTime[] = ["الصباح", "الظهر", "المساء"];
-// CJK / Chinese characters that must never appear in generated Arabic/English text.
-const CJK_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+// Foreign scripts (Chinese/CJK and Cyrillic) that must never appear in generated
+// Arabic/English text. Arabic + Latin are the only allowed scripts.
+const FOREIGN_SCRIPT_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04ff]/;
 
 function getGroqApiKey(): string {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
@@ -207,16 +208,15 @@ export function buildSystemPrompt(params: GenerateTripParams): string {
   const interestTags = normalizeInterests(params.interests);
   const languageName = params.language === "ar" ? "Arabic" : "English";
 
-  return `You are an elite Saudi travel concierge. Your mission is to craft realistic, premium, highly specific daily itineraries for Saudi destinations.
+  return `You are a master scheduler and storyteller for premium Saudi travel. I am providing you a curated list of the absolute best, trendy, real places in ${params.destination}. YOUR ONLY JOB is to SELECT places FROM THIS LIST and arrange them into a highly organic, beautifully paced itinerary. Do not invent places — everything you need is in the list below.
 
 CRITICAL RULES:
 
-1. REAL PLACES ONLY:
-Never invent generic names such as: مطعم محلي، مطعم تقليدي، مطعم القرية، سوق شعبي، مقهى محلي، منطقة ترفيهية، مكان سياحي، معلم سياحي، local restaurant, traditional restaurant, popular café, local market, tourist attraction, famous place, hidden gem.
-Use actual, searchable landmarks, restaurants, districts, and experiences.
+1. SELECT FROM THE PROVIDED LIST (do not invent):
+Build the itinerary using the curated places below. These are real, searchable, and hand-picked, so there is no need to invent anything. Never output generic names such as: مطعم محلي، مطعم تقليدي، سوق شعبي، مقهى محلي، منطقة ترفيهية، مكان سياحي، local restaurant, popular café, tourist attraction, hidden gem.
 
-2. USE THE DESTINATION KNOWLEDGE BASE:
-Prioritize the curated places below. At least 60% of the main attractions must come from this list:
+2. THE CURATED LIST (your source of truth):
+Choose attractions, trendy cafes, and dining strictly from here. The vast majority of activities must come from this list:
 ${knowledgeBlock}
 
 3. MATCH THE USER INPUTS:
@@ -249,8 +249,11 @@ family & kids -> safe accessible attractions, aquariums, parks, waterfronts.
 food & restaurants -> specific named restaurants and dining districts (never generic).
 adventure & sports -> mountains, trails, viewpoints, cable cars, outdoor experiences.
 
-7. ACTIVITY COUNT (CRITICAL):
-Every single day MUST contain a MINIMUM of 3 distinct time blocks/activities (e.g., Morning, Afternoon, Evening). Aim for 3-4 activities per day. Never return a day with fewer than 3 activities.
+7. ACTIVITY COUNT & PACING:
+Aim for 3-5 well-spaced, meaningful experiences per day, including meals and coffee stops. Never return fewer than 3 activities for any day. Do not pad with filler — every stop should earn its place.
+
+7b. ASYMMETRIC PACING (be organic, not robotic):
+Do NOT use a rigid identical daily template. Let the rhythm vary naturally across days. For example: make one day a late, relaxed start that ends near midnight at a trendy cafe (e.g. Ash Trees Cafe); make another day start early for heritage, followed by a heavy lunch, then a calm evening. Vary start times, intensity, and mood so the trip feels like a real human-planned journey.
 
 8. MEALS LOGIC (CRITICAL):
 The mealsPerDay input (${params.mealsPerDay}) dictates ONLY how many dining activities to include. It DOES NOT reduce the total number of activities.
@@ -401,9 +404,9 @@ export function validateGeneratedItinerary(
         errors.push(`${where}: forbidden generic phrase(s): ${forbidden.join(", ")}.`);
       }
 
-      if (CJK_REGEX.test(activity.title || "") || CJK_REGEX.test(description)) {
+      if (FOREIGN_SCRIPT_REGEX.test(activity.title || "") || FOREIGN_SCRIPT_REGEX.test(description)) {
         errors.push(
-          `${where}: hallucinated foreign (Chinese) characters detected. Use ONLY the requested language.`
+          `${where}: hallucinated foreign (Chinese/Cyrillic) characters detected. Use ONLY the requested language.`
         );
       }
 
@@ -426,7 +429,11 @@ export function validateGeneratedItinerary(
           : null;
         if (place) {
           knowledgeMatches += 1;
-          areasInDay.add(place.area);
+          // Only anchor attractions constrain a day's geography; cafes and dining
+          // can sit anywhere in the city (e.g. a late-night trendy cafe).
+          if (place.category !== "cafe" && place.category !== "dining") {
+            areasInDay.add(place.area);
+          }
         }
       }
     });

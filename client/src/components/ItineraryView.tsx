@@ -7,7 +7,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import type { TripActivity, TripDay } from "@/lib/gemini";
+import type { TripActivity, TripDay } from "@/lib/llm";
 import { buildMapsUrl } from "@/lib/maps";
 import { cn, getLocalizedName } from "@/lib/utils";
 import {

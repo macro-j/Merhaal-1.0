@@ -1,4 +1,4 @@
-import type { GeneratedTripPlan } from "@/lib/gemini";
+import type { GeneratedTripPlan } from "@/lib/llm";
 
 export const TRIPS_STORAGE_KEY = "merhaal_trips";
 

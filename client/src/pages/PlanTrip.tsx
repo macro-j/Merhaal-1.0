@@ -15,7 +15,7 @@ import { getLocalizedName, getDestinationSubtitle, sortDestinations } from "@/li
 import { destinationImages } from "@/constants/destinationImages";
 import { DESTINATIONS_CATALOG } from "@/constants/destinationsCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { generateTrip } from "@/lib/gemini";
+import { generateTrip, formatLlmError } from "@/lib/llm";
 import { saveTrip } from "@/lib/tripsStorage";
 
 const TOTAL_STEPS = 5;
@@ -219,12 +219,8 @@ export default function PlanTrip() {
       );
       setLocation("/my-plans");
     } catch (error) {
-      console.error("[generateTrip]", error);
-      toast.error(
-        language === "ar"
-          ? "تعذّر توليد الخطة. تحقق من الاتصال وحاول مرة أخرى."
-          : "Could not generate the plan. Check your connection and try again."
-      );
+      console.error("[PlanTrip] generateTrip failed", error);
+      toast.error(formatLlmError(error, language), { duration: 8000 });
     } finally {
       setIsGenerating(false);
       setShowLoading(false);

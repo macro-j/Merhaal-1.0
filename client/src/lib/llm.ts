@@ -14,6 +14,8 @@ export type TripActivityTime = "الصباح" | "الظهر" | "المساء";
 
 export interface TripActivity {
   time: TripActivityTime;
+  startTime: string;
+  endTime: string;
   title: string;
   description: string;
   locationName: string;
@@ -25,10 +27,17 @@ export interface TripDay {
   activities: TripActivity[];
 }
 
+export interface TripHotel {
+  name: string;
+  description: string;
+  bookingUrl: string;
+}
+
 export interface GeneratedTripPlan {
   id: string;
   title: string;
   destination: string;
+  hotel?: TripHotel;
   days: TripDay[];
 }
 
@@ -242,6 +251,13 @@ Each day should focus on one area or nearby areas. Never create unrealistic rout
 - الظهر: prefer indoor/shaded options, dining, malls, museums (especially in hot cities).
 - المساء: premium dining, waterfronts, boulevards, viewpoints, entertainment zones.
 
+5b. REALISTIC CLOCK TIMES (startTime / endTime):
+Every activity MUST include realistic 24-hour "startTime" and "endTime" (e.g. "09:00", "12:00").
+- Times must be chronological within a day and must NOT overlap.
+- Leave realistic travel/transition gaps between locations (about 20-45 minutes depending on distance).
+- Budget realistic durations: a museum or heritage site ~1.5-2.5h, a coffee stop ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, a major attraction or theme zone ~2-3h.
+- Set "time" to the block that matches startTime: before 12:00 -> "الصباح"; 12:00-16:59 -> "الظهر"; 17:00 and later -> "المساء".
+
 6. INTEREST MATCHING:
 culture & heritage -> heritage districts, museums, old towns, historic villages.
 shopping & entertainment -> malls, boulevards, modern districts, yacht clubs, premium lifestyle.
@@ -281,6 +297,11 @@ Every activity description must explain exactly WHY the user is going there: why
 11. NO REPETITION:
 Do not repeat the same attraction or restaurant across days unless the duration forces it.
 
+11b. ACCOMMODATION (root "hotel" object):
+Select ONE realistic, real, well-known hotel in ${params.destination} that matches the accommodation type "${params.accommodationType}" and the "${budgetTier}" budget tier (luxury -> a 5-star landmark hotel; midRange -> a solid 4-star; budget -> a reputable 3-star or well-rated economy hotel).
+Provide it as a root "hotel" object with "name" (real hotel name), "description" (one concrete sentence on why it fits the budget/location, in ${languageName}), and "bookingUrl" formatted EXACTLY as a Booking.com search link:
+"https://www.booking.com/searchresults.html?ss=" followed by the hotel name and destination, URL-encoded with "+" between words (e.g. "https://www.booking.com/searchresults.html?ss=Fairmont+Riyadh+Riyadh").
+
 12. JSON ONLY:
 Return ONLY valid JSON. No markdown, no commentary outside the JSON.
 Schema:
@@ -288,16 +309,17 @@ Schema:
   "id": "will_be_generated",
   "title": "String",
   "destination": "String",
+  "hotel": { "name": "String", "description": "String", "bookingUrl": "String" },
   "days": [
     {
       "dayNumber": 1,
       "activities": [
-        { "time": "الصباح" | "الظهر" | "المساء", "title": "String", "description": "String", "locationName": "String", "bookingSearchQuery": "String" }
+        { "time": "الصباح" | "الظهر" | "المساء", "startTime": "09:00", "endTime": "11:30", "title": "String", "description": "String", "locationName": "String", "bookingSearchQuery": "String" }
       ]
     }
   ]
 }
-Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". Include AT LEAST 3 activities per day (3-4 is ideal); never fewer than 3. bookingSearchQuery is a clean search string for booking/affiliate links.`;
+Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". "startTime"/"endTime" are 24-hour "HH:MM" strings. Include AT LEAST 3 activities per day (3-5 is ideal); never fewer than 3. bookingSearchQuery is a clean search string for booking/affiliate links.`;
 }
 
 function buildUserPrompt(params: GenerateTripParams): string {

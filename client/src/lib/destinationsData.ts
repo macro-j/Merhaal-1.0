@@ -44,6 +44,12 @@ export type DestinationPlace = {
   mapSearchQuery: string;
   shortDescription: string;
   planningNotes: string;
+  coordinates?: { lat: number; lng: number };
+};
+
+export type LatLng = {
+  lat: number;
+  lng: number;
 };
 
 export type DestinationKnowledge = {
@@ -51,6 +57,7 @@ export type DestinationKnowledge = {
   arabicName: string;
   englishName: string;
   aliases: string[];
+  center: LatLng;
   places: DestinationPlace[];
 };
 
@@ -59,6 +66,7 @@ const RIYADH: DestinationKnowledge = {
   arabicName: "الرياض",
   englishName: "Riyadh",
   aliases: ["riyadh", "الرياض", "ar riyadh", "ar-riyadh", "arriyadh"],
+  center: { lat: 24.7136, lng: 46.6753 },
   places: [
     {
       id: "riyadh-at-turaif",
@@ -357,6 +365,7 @@ const JEDDAH: DestinationKnowledge = {
   arabicName: "جدة",
   englishName: "Jeddah",
   aliases: ["jeddah", "جدة", "jedda", "jiddah"],
+  center: { lat: 21.5433, lng: 39.1728 },
   places: [
     {
       id: "jeddah-al-balad",
@@ -494,6 +503,7 @@ const TAIF: DestinationKnowledge = {
   arabicName: "الطائف",
   englishName: "Taif",
   aliases: ["taif", "الطائف", "al taif", "al-taif", "at taif"],
+  center: { lat: 21.2854, lng: 40.4244 },
   places: [
     {
       id: "taif-al-hada",
@@ -615,6 +625,7 @@ const ABHA: DestinationKnowledge = {
   arabicName: "أبها",
   englishName: "Abha",
   aliases: ["abha", "أبها", "aseer", "asir", "عسير"],
+  center: { lat: 18.2164, lng: 42.5053 },
   places: [
     {
       id: "abha-high-city",
@@ -736,6 +747,7 @@ const ALULA: DestinationKnowledge = {
   arabicName: "العلا",
   englishName: "AlUla",
   aliases: ["alula", "al ula", "al-ula", "العلا", "ula"],
+  center: { lat: 26.6167, lng: 37.9167 },
   places: [
     {
       id: "alula-hegra",
@@ -859,6 +871,69 @@ export const DESTINATIONS_KNOWLEDGE: DestinationKnowledge[] = [
   ABHA,
   ALULA,
 ];
+
+// Real, approximate coordinates for every curated place, keyed by place id.
+// Attached to each place below so the map can plot itinerary markers.
+const PLACE_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  // Riyadh
+  "riyadh-at-turaif": { lat: 24.734, lng: 46.576 },
+  "riyadh-bujairi": { lat: 24.7335, lng: 46.5755 },
+  "riyadh-boulevard-world": { lat: 24.776, lng: 46.608 },
+  "riyadh-via": { lat: 24.664, lng: 46.626 },
+  "riyadh-kafd": { lat: 24.7625, lng: 46.642 },
+  "riyadh-suhail": { lat: 24.7402, lng: 46.6291 },
+  "riyadh-myazu": { lat: 24.696, lng: 46.684 },
+  "riyadh-wadi-hanifah": { lat: 24.65, lng: 46.58 },
+  "riyadh-national-museum": { lat: 24.6471, lng: 46.7105 },
+  "riyadh-kingdom-centre": { lat: 24.7114, lng: 46.6745 },
+  "riyadh-ash-trees-cafe": { lat: 24.767, lng: 46.587 },
+  "riyadh-woods-cafe": { lat: 24.815, lng: 46.63 },
+  "riyadh-coyard-coffee": { lat: 24.693, lng: 46.686 },
+  "riyadh-elan-cafe": { lat: 24.78, lng: 46.64 },
+  "riyadh-sign-burger": { lat: 24.695, lng: 46.685 },
+  "riyadh-san-carlo-cicchetti": { lat: 24.75, lng: 46.64 },
+  "riyadh-aok-kitchen": { lat: 24.755, lng: 46.63 },
+  "riyadh-smokey-beards": { lat: 24.7, lng: 46.68 },
+  // Jeddah
+  "jeddah-al-balad": { lat: 21.483, lng: 39.188 },
+  "jeddah-yacht-club": { lat: 21.639, lng: 39.102 },
+  "jeddah-waterfront": { lat: 21.63, lng: 39.105 },
+  "jeddah-fakieh-aquarium": { lat: 21.647, lng: 39.108 },
+  "jeddah-khayal": { lat: 21.6, lng: 39.11 },
+  "jeddah-angelina": { lat: 21.59, lng: 39.14 },
+  "jeddah-red-sea-mall": { lat: 21.626, lng: 39.143 },
+  "jeddah-al-rahma-mosque": { lat: 21.544, lng: 39.154 },
+  // Taif
+  "taif-al-hada": { lat: 21.37, lng: 40.29 },
+  "taif-al-shafa": { lat: 21.07, lng: 40.31 },
+  "taif-al-rudaf-park": { lat: 21.25, lng: 40.42 },
+  "taif-shubra-palace": { lat: 21.27, lng: 40.415 },
+  "taif-rose-farms": { lat: 21.2, lng: 40.33 },
+  "taif-terra-mall": { lat: 21.29, lng: 40.41 },
+  "taif-heart-of-taif": { lat: 21.27, lng: 40.416 },
+  // Abha
+  "abha-high-city": { lat: 18.27, lng: 42.45 },
+  "abha-al-soudah": { lat: 18.275, lng: 42.365 },
+  "abha-soudah-cable-car": { lat: 18.28, lng: 42.37 },
+  "abha-al-muftaha": { lat: 18.216, lng: 42.505 },
+  "abha-art-street": { lat: 18.217, lng: 42.504 },
+  "abha-abu-kheyal-park": { lat: 18.23, lng: 42.52 },
+  "abha-rijal-almaa": { lat: 18.196, lng: 42.29 },
+  // AlUla
+  "alula-hegra": { lat: 26.79, lng: 37.954 },
+  "alula-elephant-rock": { lat: 26.63, lng: 38.02 },
+  "alula-maraya": { lat: 26.61, lng: 37.97 },
+  "alula-old-town": { lat: 26.616, lng: 37.918 },
+  "alula-dadan-ikmah": { lat: 26.67, lng: 37.93 },
+  "alula-harrat-viewpoint": { lat: 26.65, lng: 37.88 },
+  "alula-oasis-trail": { lat: 26.62, lng: 37.92 },
+};
+
+for (const destination of DESTINATIONS_KNOWLEDGE) {
+  for (const place of destination.places) {
+    place.coordinates = PLACE_COORDINATES[place.id];
+  }
+}
 
 export function normalizeText(value: string): string {
   return (value || "")
@@ -1119,4 +1194,15 @@ export function matchesKnowledgePlace(
   knowledge: DestinationKnowledge
 ): boolean {
   return findKnowledgePlace(text, knowledge) !== null;
+}
+
+// Fallback map center (Riyadh) for unknown destinations.
+const DEFAULT_MAP_CENTER: LatLng = { lat: 24.7136, lng: 46.6753 };
+
+/**
+ * Approximate city-center coordinates for a destination, used to center the map.
+ * Falls back to Riyadh when the destination is unknown.
+ */
+export function getDestinationCenter(destination: string): LatLng {
+  return resolveDestination(destination)?.center ?? DEFAULT_MAP_CENTER;
 }

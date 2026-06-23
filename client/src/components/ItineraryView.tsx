@@ -7,22 +7,50 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import type { TripActivity, TripDay } from "@/lib/llm";
+import type { TripActivity, TripDay, TripHotel } from "@/lib/llm";
 import { buildMapsUrl } from "@/lib/maps";
 import { cn, getLocalizedName } from "@/lib/utils";
 import {
+  BedDouble,
   Calendar,
   Clock,
   DollarSign,
   ExternalLink,
   MapPin,
   Moon,
+  Printer,
   Search,
   Sparkles,
   Sun,
   Sunset,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { lazy, Suspense } from "react";
+
+// Lazy-load the map so Leaflet stays out of the main bundle.
+const TripMap = lazy(() => import("@/components/TripMap"));
+
+function MapLoadingFallback() {
+  return (
+    <div className="relative h-72 w-full overflow-hidden bg-muted/40">
+      <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted/30 via-muted/50 to-muted/30" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="h-7 w-7 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-primary" />
+      </div>
+    </div>
+  );
+}
+
+function buildBookingUrl(hotel: TripHotel, destination: string): string {
+  if (hotel.bookingUrl && /^https?:\/\//i.test(hotel.bookingUrl)) {
+    return hotel.bookingUrl;
+  }
+  const query = encodeURIComponent(`${hotel.name} ${destination}`.trim()).replace(
+    /%20/g,
+    "+"
+  );
+  return `https://www.booking.com/searchresults.html?ss=${query}`;
+}
 
 const ARABIC_DAY_ORDINALS = [
   "الأول",
@@ -94,6 +122,12 @@ function ActivityTimelineItem({
           <Badge variant="outline" className={cn("text-xs font-medium", timeBadgeClass(activity.time))}>
             {activity.time}
           </Badge>
+          {activity.startTime && activity.endTime && (
+            <Badge variant="secondary" className="text-xs font-normal gap-1">
+              <Clock className="w-3 h-3" />
+              {activity.startTime} - {activity.endTime}
+            </Badge>
+          )}
         </div>
 
         <h4 className="text-base font-semibold leading-snug">{activity.title}</h4>
@@ -136,9 +170,10 @@ function ActivityTimelineItem({
 interface SavedTripItineraryProps {
   days: TripDay[];
   destination: string;
+  hotel?: TripHotel;
 }
 
-export function SavedTripItinerary({ days, destination }: SavedTripItineraryProps) {
+export function SavedTripItinerary({ days, destination, hotel }: SavedTripItineraryProps) {
   if (!days?.length) {
     return (
       <Card className="border-dashed">
@@ -149,9 +184,71 @@ export function SavedTripItinerary({ days, destination }: SavedTripItineraryProp
     );
   }
 
+  const hotelBookingUrl = hotel ? buildBookingUrl(hotel, destination) : null;
+  const allActivities = days.flatMap((day) => day.activities ?? []);
+
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-bold">برنامج الرحلة اليومي</h2>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-lg font-bold">برنامج الرحلة اليومي</h2>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 print:hidden"
+          onClick={() => window.print()}
+          data-testid="button-export-pdf"
+        >
+          <Printer className="w-4 h-4" />
+          تصدير الخطة كـ PDF
+        </Button>
+      </div>
+
+      <Card className="overflow-hidden print:hidden">
+        <CardHeader className="py-3 border-b">
+          <CardTitle className="text-base font-bold flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" />
+            خريطة الوجهة
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Suspense fallback={<MapLoadingFallback />}>
+            <TripMap
+              destination={destination}
+              activities={allActivities}
+              className="h-72 w-full"
+            />
+          </Suspense>
+        </CardContent>
+      </Card>
+
+      {hotel && (
+        <Card className="overflow-hidden">
+          <CardHeader className="bg-primary/5 border-b py-4">
+            <CardTitle className="text-base font-bold flex items-center gap-2">
+              <BedDouble className="w-4 h-4 text-primary" />
+              الإقامة المقترحة
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3">
+            <div>
+              <h4 className="font-semibold leading-snug">{hotel.name}</h4>
+              {hotel.description && (
+                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                  {hotel.description}
+                </p>
+              )}
+            </div>
+            {hotelBookingUrl && (
+              <Button variant="secondary" size="sm" className="gap-1.5 print:hidden" asChild>
+                <a href={hotelBookingUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  احجز عبر Booking.com
+                </a>
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {days.map((day) => (
         <Card key={day.dayNumber} className="overflow-hidden" data-testid={`day-${day.dayNumber}`}>

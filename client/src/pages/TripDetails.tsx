@@ -140,7 +140,7 @@ export default function TripDetails() {
           </CardContent>
         </Card>
 
-        <SavedTripItinerary days={trip.days} destination={trip.destination} />
+        <SavedTripItinerary days={trip.days} destination={trip.destination} hotel={trip.hotel} />
       </div>
     </AppShell>
   );

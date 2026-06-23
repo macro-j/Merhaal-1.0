@@ -108,4 +108,16 @@ describe("knowledge base integrity", () => {
       }
     }
   });
+
+  it("gives every place real coordinates within Saudi Arabia bounds", () => {
+    for (const dest of DESTINATIONS_KNOWLEDGE) {
+      for (const place of dest.places) {
+        expect(place.coordinates, `${place.id} missing coordinates`).toBeDefined();
+        expect(place.coordinates!.lat).toBeGreaterThan(16);
+        expect(place.coordinates!.lat).toBeLessThan(33);
+        expect(place.coordinates!.lng).toBeGreaterThan(34);
+        expect(place.coordinates!.lng).toBeLessThan(56);
+      }
+    }
+  });
 });

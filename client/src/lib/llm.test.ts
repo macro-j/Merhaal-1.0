@@ -19,12 +19,20 @@ function validRiyadhPlan(): GeneratedTripPlan {
     id: "will_be_generated",
     title: "يوم الدرعية التراثي في الرياض",
     destination: "الرياض",
+    hotel: {
+      name: "Bab Samhan, a Luxury Collection Hotel, Diriyah",
+      description: "فندق فاخر في الدرعية يناسب الإقامة الراقية وقريب من حي الطريف.",
+      bookingUrl:
+        "https://www.booking.com/searchresults.html?ss=Bab+Samhan+Diriyah+Riyadh",
+    },
     days: [
       {
         dayNumber: 1,
         activities: [
           {
             time: "الصباح",
+            startTime: "09:00",
+            endTime: "11:30",
             title: "جولة في حي الطريف",
             description:
               "ابدأ يومك في At-Turaif World Heritage Site, Diriyah للتجول بين الأزقة الطينية التاريخية قبل اشتداد الحر.",
@@ -33,6 +41,8 @@ function validRiyadhPlan(): GeneratedTripPlan {
           },
           {
             time: "الظهر",
+            startTime: "12:30",
+            endTime: "14:30",
             title: "نزهة في وادي حنيفة",
             description:
               "استمتع بالمساحات الخضراء على ضفاف Wadi Hanifah, Riyadh القريبة من الدرعية مع استراحة هادئة وسط الطبيعة.",
@@ -41,6 +51,8 @@ function validRiyadhPlan(): GeneratedTripPlan {
           },
           {
             time: "المساء",
+            startTime: "19:00",
+            endTime: "21:00",
             title: "عشاء في مطل البجيري",
             description:
               "اختتم اليوم بعشاء راقٍ في Bujairi Terrace, Diriyah بإطلالة مسائية ساحرة على حي الطريف ومطاعم عالمية.",

@@ -2,10 +2,10 @@ import OpenAI from "openai";
 import {
   findForbiddenPhrases,
   findKnowledgePlace,
-  getBudgetTier,
   getDestinationKnowledgeForPrompt,
   normalizeInterests,
   normalizeText,
+  resolveBudgetTier,
   resolveDestination,
   type DestinationKnowledge,
 } from "@/lib/destinationsData";
@@ -43,13 +43,33 @@ export interface GeneratedTripPlan {
 
 export type OutputLanguage = "ar" | "en";
 
+/** Strict budget/style tiers shown to the user. */
+export type ArabicBudgetTier = "اقتصادية" | "متوسطة" | "فاخرة";
+export const BUDGET_TIER_OPTIONS: ArabicBudgetTier[] = [
+  "اقتصادية",
+  "متوسطة",
+  "فاخرة",
+];
+
+/** Strict trip "moods" replacing free-form interests. */
+export type TripMood =
+  | "عريق وتراثي"
+  | "ترند ولايف ستايل"
+  | "استرخاء وطبيعة"
+  | "حيوية وترفيه";
+export const TRIP_MOOD_OPTIONS: TripMood[] = [
+  "عريق وتراثي",
+  "ترند ولايف ستايل",
+  "استرخاء وطبيعة",
+  "حيوية وترفيه",
+];
+
 export interface GenerateTripParams {
   destination: string;
+  /** Constrained to 1..7 by the UI. */
   durationDays: number;
-  totalBudgetSar: number;
-  accommodationType: string;
-  mealsPerDay: number;
-  interests: string[];
+  budgetTier: ArabicBudgetTier;
+  interests: TripMood[];
   language: OutputLanguage;
   startDate?: string;
 }
@@ -206,108 +226,71 @@ function describeInterests(params: GenerateTripParams): string {
 
 export function buildSystemPrompt(params: GenerateTripParams): string {
   const knowledgeBlock = getDestinationKnowledgeForPrompt(params.destination);
-  const dailyBudget = Math.round(
-    params.totalBudgetSar / Math.max(1, params.durationDays)
-  );
-  const budgetTier = getBudgetTier(
-    params.totalBudgetSar,
-    params.durationDays,
-    params.accommodationType,
-    params.mealsPerDay
-  );
+  const budgetTier = resolveBudgetTier(params.budgetTier);
   const interestTags = normalizeInterests(params.interests);
   const languageName = params.language === "ar" ? "Arabic" : "English";
 
-  return `You are a master scheduler and storyteller for premium Saudi travel. I am providing you a curated list of the absolute best, trendy, real places in ${params.destination}. YOUR ONLY JOB is to SELECT places FROM THIS LIST and arrange them into a highly organic, beautifully paced itinerary. Do not invent places — everything you need is in the list below.
+  const moodList = describeInterests(params);
+  const styleVoice =
+    params.language === "ar"
+      ? "اكتب بعربية أنيقة وراقية وشاعرية بأسلوب يشبه كتابة Apple."
+      : "Write in elegant, premium, slightly poetic travel English (Apple-like copywriting).";
 
-CRITICAL RULES:
+  return `<role>
+You are an elite, highly sought-after Saudi Travel Concierge. Your tone is premium, welcoming, and poetic (Apple-like Arabic copywriting). ${styleVoice} Your mission is to design a ${params.durationDays}-day luxury itinerary for ${params.destination}. The entire output language MUST be ${languageName}.
+</role>
 
-1. SELECT FROM THE PROVIDED LIST (do not invent):
-Build the itinerary using the curated places below. These are real, searchable, and hand-picked, so there is no need to invent anything. Never output generic names such as: مطعم محلي، مطعم تقليدي، سوق شعبي، مقهى محلي، منطقة ترفيهية، مكان سياحي، local restaurant, popular café, tourist attraction, hidden gem.
+<user_profile>
+- Destination: ${params.destination}
+- Duration: ${params.durationDays} day(s)
+- Start date: ${params.startDate || "not specified"}
+- Budget & Style: ${params.budgetTier} (internal tier: ${budgetTier})
+- Vibe & Moods: ${moodList}${interestTags.length ? ` (tags: ${interestTags.join(", ")})` : ""}
+</user_profile>
 
-2. THE CURATED LIST (your source of truth):
-Choose attractions, trendy cafes, and dining strictly from here. The vast majority of activities must come from this list:
+<curated_places>
+CRITICAL: These are the only real, hand-picked places you may use. SELECT from this list — never invent generic places. At least 60% of activities MUST come from this list, and each day should stay geographically focused on one area or nearby areas.
 ${knowledgeBlock}
+</curated_places>
 
-3. MATCH THE USER INPUTS:
-- destination: ${params.destination}
-- start date: ${params.startDate || "not specified"}
-- duration in days: ${params.durationDays}
-- total trip budget in SAR: ${params.totalBudgetSar}
-- estimated daily budget in SAR: ${dailyBudget}
-- interpreted budget tier: ${budgetTier}
-- accommodation type: ${params.accommodationType}
-- meals per day: ${params.mealsPerDay}
-- selected interests: ${describeInterests(params)}${
-    interestTags.length ? ` (tags: ${interestTags.join(", ")})` : ""
-  }
-- output language: ${languageName}
-The budget is a quality/feasibility signal, not a spending target. Do not try to spend the whole budget.
+<strict_time_and_logic_laws>
+CRITICAL: You must obey the physics of time and the reality of Saudi tourism.
+1. MORNINGS (08:00 - 12:00) -> time = "الصباح": ONLY Heritage sites (e.g., At-Turaif, museums), Nature (Wadi Hanifah, parks, viewpoints), or Breakfast/Brunch cafes. NEVER schedule entertainment zones or malls here.
+2. AFTERNOONS (12:00 - 17:00) -> time = "الظهر": indoor/shaded activities, premium lunches, museums, or relaxed walks.
+3. EVENINGS/NIGHTS (17:00 - 23:59) -> time = "المساء": THIS is when you schedule "Trendy & Lifestyle" or "Vibrant & Entertainment" places (e.g., Boulevard World, VIA Riyadh, KAFD, fine dining, waterfronts, boulevards).
+4. NO DEAD TIME: the gap between the END of one activity and the START of the next MUST NOT exceed 3 hours (180 min). Keep only realistic transitions (~20-45 min). If one ends at 11:30, the next must start by 14:30 at the latest.
+5. DENSITY: provide EXACTLY 4 to 5 activities per day — never fewer than 4.
+6. CLOCK FIELDS: every activity MUST have 24-hour "startTime" and "endTime" ("HH:MM"), chronological and non-overlapping, with "time" matching the block above. Realistic durations: heritage/museum ~1.5-2.5h, coffee ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, major attraction ~2-3h.
+7. ASYMMETRIC PACING: do NOT reuse an identical daily template — vary start times and mood (e.g. one day ends late at a trendy cafe, another starts early for heritage). Never repeat the same place across days unless duration forces it.
+</strict_time_and_logic_laws>
 
-4. LOGICAL GEOGRAPHY:
-Each day should focus on one area or nearby areas. Never create unrealistic routes that jump across far-apart areas without reason. Good day examples: Diriyah day (At-Turaif + Bujairi Terrace + Wadi Hanifah); Jeddah waterfront day (Jeddah Waterfront + Fakieh Aquarium + Jeddah Yacht Club); Taif mountain day (Al Hada + Al Shafa); Abha day (Al Soudah + High City + Art Street); AlUla heritage day (Hegra + Dadan + AlUla Old Town).
+<style_mapping_laws>
+Match the places to "${params.budgetTier}":
+- If "فاخرة" (Luxury): 5-star hotels, fine dining (Myazu, Suhail, San Carlo Cicchetti), and VIP experiences (VIA Riyadh, Bujairi Terrace, Maraya, Jeddah Yacht Club).
+- If "متوسطة" (Mid-range): 4-star hotels, highly-rated trendy casual spots (Sign Burger, Elan Cafe, AOK Kitchen), and paid entertainment.
+- If "اقتصادية" (Budget): practical hotels, free outdoor parks and nature, local heritage, and affordable popular food.
+</style_mapping_laws>
 
-5. TIME-AWARE PLANNING (time field: "الصباح" morning, "الظهر" afternoon/noon, "المساء" evening):
-- الصباح: heritage sites, outdoor walks, scenic viewpoints, light activities.
-- الظهر: prefer indoor/shaded options, dining, malls, museums (especially in hot cities).
-- المساء: premium dining, waterfronts, boulevards, viewpoints, entertainment zones.
+<dining_laws>
+Weave 1-2 real meal moments (lunch + dinner) plus a trendy coffee stop into each day, all chosen from the curated dining/cafe list. Never use generic restaurant names. Dining and coffee count toward the 4-5 daily activities.
+</dining_laws>
 
-5b. REALISTIC CLOCK TIMES (startTime / endTime):
-Every activity MUST include realistic 24-hour "startTime" and "endTime" (e.g. "09:00", "12:00").
-- Times must be chronological within a day and must NOT overlap.
-- Budget realistic durations: a museum or heritage site ~1.5-2.5h, a coffee stop ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, a major attraction or theme zone ~2-3h.
-- Set "time" to the block that matches startTime: before 12:00 -> "الصباح"; 12:00-16:59 -> "الظهر"; 17:00 and later -> "المساء".
+<accommodation_law>
+Select ONE real, well-known hotel in ${params.destination} matching "${params.budgetTier}" (فاخرة -> 5-star landmark; متوسطة -> solid 4-star; اقتصادية -> reputable 3-star/economy). Return it as the root "hotel" object with "name", "description" (one concrete sentence in ${languageName}), and "bookingUrl" formatted EXACTLY as a Booking.com search link: "https://www.booking.com/searchresults.html?ss=" + hotel name + destination, URL-encoded with "+" between words (e.g. "https://www.booking.com/searchresults.html?ss=Fairmont+Riyadh+Riyadh").
+</accommodation_law>
 
-5c. NO DEAD TIME (CRITICAL):
-The gap between the END of one activity and the START of the next on the same day MUST NOT exceed 3 hours (180 minutes). Leave only realistic travel/transition gaps (~20-45 minutes). For example: if an activity ends at 11:30, the next MUST start by 14:30 at the latest. Never leave large empty stretches in the day — fill them with a meal, a coffee stop, or a nearby experience from the list.
-
-6. INTEREST MATCHING:
-culture & heritage -> heritage districts, museums, old towns, historic villages.
-shopping & entertainment -> malls, boulevards, modern districts, yacht clubs, premium lifestyle.
-family & kids -> safe accessible attractions, aquariums, parks, waterfronts.
-food & restaurants -> specific named restaurants and dining districts (never generic).
-adventure & sports -> mountains, trails, viewpoints, cable cars, outdoor experiences.
-
-7. ACTIVITY COUNT & PACING (CRITICAL):
-Every single day MUST contain AT LEAST 4 activities (4-5 is ideal), including meals and coffee stops. Never return fewer than 4 activities for any day. Each stop should be meaningful and well-spaced — no filler, but also no lazy short days.
-
-7b. ASYMMETRIC PACING (be organic, not robotic):
-Do NOT use a rigid identical daily template. Let the rhythm vary naturally across days. For example: make one day a late, relaxed start that ends near midnight at a trendy cafe (e.g. Ash Trees Cafe); make another day start early for heritage, followed by a heavy lunch, then a calm evening. Vary start times, intensity, and mood so the trip feels like a real human-planned journey.
-
-8. MEALS LOGIC (CRITICAL):
-The mealsPerDay input (${params.mealsPerDay}) dictates ONLY how many dining activities to include. It DOES NOT reduce the total number of activities.
-- If meals per day is 2: include exactly two dining moments (usually lunch + dinner), but the day must STILL have at least 3 total activities (e.g., 1 heritage/outdoor activity + 1 dining + 1 entertainment/dining).
-- If meals per day is 3: include breakfast, lunch, and dinner, plus non-dining activities so the day stays rich (4+ activities is ideal).
-Every meal must be a real, specific, named restaurant or dining district (never generic).
-
-9. OUTPUT LANGUAGE & HALLUCINATION STRICTNESS (CRITICAL):
-Output language: ${languageName}.
-${
+<language_laws>
+Output language: ${languageName}. ${
     params.language === "ar"
-      ? `If Arabic: Use polished, 100% pure natural Arabic.`
-      : `If English: Use clear, premium travel English.`
+      ? "Use polished, 100% pure natural Arabic."
+      : "Use clear, premium travel English."
   }
-STRICT NEGATIVE CONSTRAINT: You MUST NOT hallucinate, output, or mix in Chinese characters (e.g., "开始"), stray English words (unless it is a specific brand/location name like "VIA Riyadh" or "Bujairi Terrace"), or any other language in the title or description fields. The output MUST be strictly in the requested language.
-For locationName, always use a precise, copy-paste-able Google Maps name. When writing in Arabic you may append the English map name, e.g. "مطل البجيري - Bujairi Terrace, Diriyah".
+STRICT NEGATIVE CONSTRAINT: NEVER output or mix in Chinese characters (e.g. "开始"), Cyrillic, or stray words from other languages in "title" or "description" — except real brand/place names (e.g. "VIA Riyadh", "Bujairi Terrace"). "locationName" must be a precise, copy-paste-able Google Maps name; in Arabic you may append the English map name, e.g. "مطل البجيري - Bujairi Terrace, Diriyah".
+</language_laws>
 
-10. DESCRIPTION QUALITY (No generic filler):
-Every activity description must explain exactly WHY the user is going there: why the place is worth visiting, why it fits the chosen interest, why it fits the time of day, and why it fits the budget level. Write naturally; do NOT start descriptions with poorly translated generic verbs or foreign words. ${
-    params.language === "ar"
-      ? `Good example: "استمتع بتجربة تسوق فاخرة في ڤيا رياض..." — Bad example: "开始 يومك...".`
-      : `Good example: "Enjoy a refined dining experience at Myazu Riyadh..." — never inject non-English filler.`
-  }
-
-11. NO REPETITION:
-Do not repeat the same attraction or restaurant across days unless the duration forces it.
-
-11b. ACCOMMODATION (root "hotel" object):
-Select ONE realistic, real, well-known hotel in ${params.destination} that matches the accommodation type "${params.accommodationType}" and the "${budgetTier}" budget tier (luxury -> a 5-star landmark hotel; midRange -> a solid 4-star; budget -> a reputable 3-star or well-rated economy hotel).
-Provide it as a root "hotel" object with "name" (real hotel name), "description" (one concrete sentence on why it fits the budget/location, in ${languageName}), and "bookingUrl" formatted EXACTLY as a Booking.com search link:
-"https://www.booking.com/searchresults.html?ss=" followed by the hotel name and destination, URL-encoded with "+" between words (e.g. "https://www.booking.com/searchresults.html?ss=Fairmont+Riyadh+Riyadh").
-
-12. JSON ONLY:
-Return ONLY valid JSON. No markdown, no commentary outside the JSON.
-Schema:
+<output_requirements>
+Write each "description" beautifully and specifically — make the user FEEL the luxury and understand WHY this place, at this time, for this budget. Do NOT write flat lines like "Visit the museum"; instead, e.g. "انغمس في عبق التاريخ واستكشف جذور المملكة في...". Avoid generic phrases (مطعم محلي، سوق شعبي، منطقة ترفيهية، local restaurant, tourist attraction, hidden gem). Each description must be at least one rich sentence.
+Output ONLY valid JSON (no markdown, no commentary) matching this schema exactly:
 {
   "id": "will_be_generated",
   "title": "String",
@@ -322,7 +305,8 @@ Schema:
     }
   ]
 }
-Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". "startTime"/"endTime" are 24-hour "HH:MM" strings, chronological, with no gap over 3 hours between consecutive activities. Include AT LEAST 4 activities per day (4-5 is ideal); never fewer than 4. bookingSearchQuery is a clean search string for booking/affiliate links.`;
+Rules: "time" is exactly one of "الصباح", "الظهر", "المساء". 4-5 activities per day (never fewer than 4). bookingSearchQuery is a clean search string for booking/affiliate links.
+</output_requirements>`;
 }
 
 function buildUserPrompt(params: GenerateTripParams): string {

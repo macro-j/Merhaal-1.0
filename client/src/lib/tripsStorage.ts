@@ -5,8 +5,7 @@ export const TRIPS_STORAGE_KEY = "merhaal_trips";
 export interface SavedTrip extends GeneratedTripPlan {
   id: string;
   createdAt: string;
-  budget: number;
-  companions: string;
+  budgetTier: string;
   interests: string[];
   startDate?: string;
   dayCount: number;

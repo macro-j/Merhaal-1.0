@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   DESTINATIONS_KNOWLEDGE,
   findForbiddenPhrases,
-  getBudgetTier,
+  resolveBudgetTier,
   getDestinationKnowledgeForPrompt,
   normalizeInterests,
   resolveDestination,
@@ -33,22 +33,17 @@ describe("resolveDestination", () => {
   });
 });
 
-describe("getBudgetTier", () => {
-  it("treats a high daily budget as luxury", () => {
-    expect(getBudgetTier(5800, 1, "متوسط", 2)).toBe("luxury");
+describe("resolveBudgetTier", () => {
+  it("maps the Arabic tiers to internal tiers", () => {
+    expect(resolveBudgetTier("اقتصادية")).toBe("budget");
+    expect(resolveBudgetTier("متوسطة")).toBe("midRange");
+    expect(resolveBudgetTier("فاخرة")).toBe("luxury");
   });
 
-  it("treats the same total over a long trip as mid-range or budget by accommodation", () => {
-    expect(getBudgetTier(5800, 7, "اقتصادي", 2)).toBe("midRange");
-    expect(getBudgetTier(5800, 7, "متوسط", 3)).toBe("budget");
-  });
-
-  it("interprets the success-criteria 3-day Riyadh trip as mid-range", () => {
-    expect(getBudgetTier(3000, 3, "متوسط", 2)).toBe("midRange");
-  });
-
-  it("never divides by zero on a zero-day input", () => {
-    expect(() => getBudgetTier(1000, 0, "luxury", 2)).not.toThrow();
+  it("handles English/VIP synonyms and unknown values", () => {
+    expect(resolveBudgetTier("Luxury VIP")).toBe("luxury");
+    expect(resolveBudgetTier("budget")).toBe("budget");
+    expect(resolveBudgetTier("something else")).toBe("midRange");
   });
 });
 
@@ -73,12 +68,18 @@ describe("getDestinationKnowledgeForPrompt", () => {
 });
 
 describe("normalizeInterests", () => {
-  it("maps Arabic UI labels to canonical tags", () => {
-    expect(normalizeInterests(["ثقافة وتراث"])).toEqual(
+  it("maps the new mood vocabulary to canonical tags", () => {
+    expect(normalizeInterests(["عريق وتراثي"])).toEqual(
       expect.arrayContaining(["culture", "heritage"])
     );
-    expect(normalizeInterests(["طعام ومطاعم"])).toEqual(
-      expect.arrayContaining(["food", "restaurants"])
+    expect(normalizeInterests(["ترند ولايف ستايل"])).toEqual(
+      expect.arrayContaining(["food", "restaurants", "shopping", "entertainment"])
+    );
+    expect(normalizeInterests(["استرخاء وطبيعة"])).toEqual(
+      expect.arrayContaining(["nature", "relaxation"])
+    );
+    expect(normalizeInterests(["حيوية وترفيه"])).toEqual(
+      expect.arrayContaining(["entertainment", "family", "adventure"])
     );
   });
 });

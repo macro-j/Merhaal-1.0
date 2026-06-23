@@ -1,13 +1,28 @@
 import AppShell from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, MapPin, Calendar as CalendarIcon, DollarSign, Heart, Eye, ChevronLeft, ChevronRight, Check, Hotel, CalendarDays, UtensilsCrossed } from "lucide-react";
+import {
+  Loader2,
+  MapPin,
+  Calendar as CalendarIcon,
+  Wallet,
+  Sparkles,
+  Eye,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+  CalendarDays,
+  Landmark,
+  Leaf,
+  PartyPopper,
+  Gem,
+  Coins,
+  Scale,
+} from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -15,16 +30,69 @@ import { getLocalizedName, getDestinationSubtitle, sortDestinations } from "@/li
 import { destinationImages } from "@/constants/destinationImages";
 import { DESTINATIONS_CATALOG } from "@/constants/destinationsCatalog";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { generateTrip, formatLlmError } from "@/lib/llm";
+import {
+  generateTrip,
+  formatLlmError,
+  type ArabicBudgetTier,
+  type TripMood,
+} from "@/lib/llm";
 import { saveTrip } from "@/lib/tripsStorage";
+
+type LucideIcon = typeof Wallet;
+
+const BUDGET_TIER_CARDS: Array<{
+  value: ArabicBudgetTier;
+  titleAr: string;
+  titleEn: string;
+  descAr: string;
+  descEn: string;
+  icon: LucideIcon;
+}> = [
+  {
+    value: "اقتصادية",
+    titleAr: "اقتصادية وعملية",
+    titleEn: "Practical & Budget",
+    descAr: "أماكن محبوبة بأسعار مناسبة وتجارب عملية",
+    descEn: "Well-loved spots, smart spending, practical picks",
+    icon: Coins,
+  },
+  {
+    value: "متوسطة",
+    titleAr: "متوازنة ومريحة",
+    titleEn: "Balanced & Mid-range",
+    descAr: "توازن مثالي بين الجودة والراحة والقيمة",
+    descEn: "The sweet spot of quality, comfort and value",
+    icon: Scale,
+  },
+  {
+    value: "فاخرة",
+    titleAr: "فاخرة VIP",
+    titleEn: "Luxury & VIP",
+    descAr: "وجهات راقية ومطاعم فاخرة وتجارب استثنائية",
+    descEn: "Premium districts, fine dining, exceptional moments",
+    icon: Gem,
+  },
+];
+
+const MOOD_CARDS: Array<{
+  value: TripMood;
+  titleAr: string;
+  titleEn: string;
+  icon: LucideIcon;
+}> = [
+  { value: "عريق وتراثي", titleAr: "عريق وتراثي", titleEn: "Heritage", icon: Landmark },
+  { value: "ترند ولايف ستايل", titleAr: "ترند ولايف ستايل", titleEn: "Trendy", icon: Sparkles },
+  { value: "استرخاء وطبيعة", titleAr: "استرخاء وطبيعة", titleEn: "Nature", icon: Leaf },
+  { value: "حيوية وترفيه", titleAr: "حيوية وترفيه", titleEn: "Entertainment", icon: PartyPopper },
+];
 
 const TOTAL_STEPS = 5;
 
 const generatingMessages = [
   "تحليل تفضيلاتك",
-  "اختيار الأنشطة المناسبة",
+  "اختيار الأماكن الأنسب",
   "ترتيب الجدول اليومي",
-  "مراجعة الميزانية",
+  "تنسيق اللمسات الأخيرة",
 ];
 
 export default function PlanTrip() {
@@ -52,10 +120,8 @@ export default function PlanTrip() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [days, setDays] = useState(1);
-  const [budget, setBudget] = useState(500);
-  const [interests, setInterests] = useState<string[]>([]);
-  const [accommodationType, setAccommodationType] = useState("متوسط");
-  const [mealsPerDay, setMealsPerDay] = useState(2);
+  const [budgetTier, setBudgetTier] = useState<ArabicBudgetTier>("متوسطة");
+  const [interests, setInterests] = useState<TripMood[]>([]);
   const [msgIndex, setMsgIndex] = useState(0);
   const [showLoading, setShowLoading] = useState(false);
   const loadingStartRef = useRef<number>(0);
@@ -109,15 +175,7 @@ export default function PlanTrip() {
     };
   }, [isGenerating, showLoading]);
 
-  const interestOptions = [
-    "ثقافة وتراث",
-    "تسوق وترفيه",
-    "عائلي وأطفال",
-    "طعام ومطاعم",
-    "مغامرات ورياضة",
-  ];
-
-  const toggleInterest = (interest: string) => {
+  const toggleInterest = (interest: TripMood) => {
     setInterests((prev) =>
       prev.includes(interest)
         ? prev.filter((i) => i !== interest)
@@ -125,13 +183,11 @@ export default function PlanTrip() {
     );
   };
 
-  const currentTier = { maxDays: 999, maxActivities: 999, maxTrips: 999 };
-
   const stepLabels = [
     { ar: "الوجهة", en: "Destination", icon: MapPin },
-    { ar: "التاريخ والأيام", en: "Date & Days", icon: CalendarIcon },
-    { ar: "الميزانية والإقامة", en: "Budget", icon: DollarSign },
-    { ar: "الاهتمامات", en: "Interests", icon: Heart },
+    { ar: "التاريخ والمدة", en: "Date & Duration", icon: CalendarIcon },
+    { ar: "نمط الرحلة", en: "Trip Style", icon: Wallet },
+    { ar: "جو الرحلة", en: "Vibe", icon: Sparkles },
     { ar: "المراجعة", en: "Review", icon: Eye },
   ];
 
@@ -142,7 +198,7 @@ export default function PlanTrip() {
       case 2:
         return startDate !== undefined && days >= 1;
       case 3:
-        return budget >= 100;
+        return Boolean(budgetTier);
       case 4:
         return true;
       case 5:
@@ -157,7 +213,7 @@ export default function PlanTrip() {
       const msgs: Record<number, { ar: string; en: string }> = {
         1: { ar: "الرجاء اختيار وجهة", en: "Please select a destination" },
         2: { ar: "الرجاء تحديد تاريخ البداية وعدد الأيام", en: "Please set start date and days" },
-        3: { ar: "الرجاء تحديد الميزانية", en: "Please set a budget" },
+        3: { ar: "الرجاء اختيار نمط الرحلة", en: "Please choose a trip style" },
       };
       const msg = msgs[step];
       if (msg) toast.error(language === "ar" ? msg.ar : msg.en);
@@ -178,10 +234,6 @@ export default function PlanTrip() {
       selectedDest.nameEn,
       language
     );
-    const companions =
-      language === "ar"
-        ? `إقامة ${accommodationType}، ${mealsPerDay} وجبات يوميًا`
-        : `${accommodationType} stay, ${mealsPerDay} meals/day`;
 
     setIsGenerating(true);
     loadingStartRef.current = Date.now();
@@ -190,9 +242,7 @@ export default function PlanTrip() {
       const plan = await generateTrip({
         destination: destinationName,
         durationDays: days,
-        totalBudgetSar: budget,
-        accommodationType,
-        mealsPerDay,
+        budgetTier,
         interests,
         language,
         startDate: toISODateString(startDate) || undefined,
@@ -202,8 +252,7 @@ export default function PlanTrip() {
         ...plan,
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
-        budget,
-        companions,
+        budgetTier,
         interests,
         startDate: toISODateString(startDate) || undefined,
         dayCount: days,
@@ -315,9 +364,7 @@ export default function PlanTrip() {
     </Card>
   );
 
-  const dayChips = [1, 2, 3, 4, 5, 7, 10].filter(
-    (d) => d <= (currentTier.maxDays >= 999 ? 365 : currentTier.maxDays)
-  );
+  const dayChips = [1, 2, 3, 4, 5, 7];
 
   const renderStep2 = () => (
     <Card>
@@ -366,42 +413,29 @@ export default function PlanTrip() {
         </div>
 
         <div className="space-y-2">
-          <Label>
-            {language === "ar"
-              ? `مدة الرحلة${currentTier.maxDays < 999 ? ` (الحد الأقصى: ${currentTier.maxDays})` : ""}`
-              : `Trip Duration${currentTier.maxDays < 999 ? ` (max: ${currentTier.maxDays})` : ""}`}
-          </Label>
-          <div className="flex flex-wrap gap-2">
-            {dayChips.map((d) => (
-              <Button
-                key={d}
-                type="button"
-                variant={days === d ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDays(d)}
-                data-testid={`button-days-${d}`}
-              >
-                {d} {language === "ar" ? (d === 1 ? "يوم" : "أيام") : (d === 1 ? "day" : "days")}
-              </Button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 mt-2">
-            <Label htmlFor="customDays" className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-              {language === "ar" ? "عدد مخصص:" : "Custom:"}
-            </Label>
-            <Input
-              id="customDays"
-              type="number"
-              min="1"
-              max={currentTier.maxDays >= 999 ? 365 : currentTier.maxDays}
-              value={days}
-              onChange={(e) => {
-                const val = parseInt(e.target.value);
-                if (!isNaN(val) && val >= 1) setDays(val);
-              }}
-              className="w-24"
-              data-testid="input-days"
-            />
+          <Label>{language === "ar" ? "مدة الرحلة" : "Trip Duration"}</Label>
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {dayChips.map((d) => {
+              const isActive = days === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDays(d)}
+                  data-testid={`button-days-${d}`}
+                  className={`flex flex-col items-center justify-center rounded-xl border py-3 transition-all ${
+                    isActive
+                      ? "border-primary bg-primary/10 text-primary shadow-sm"
+                      : "border-border hover:border-primary/40 hover:bg-muted/50"
+                  }`}
+                >
+                  <span className="text-lg font-bold leading-none">{d}</span>
+                  <span className="text-[11px] text-muted-foreground mt-1">
+                    {language === "ar" ? (d === 1 ? "يوم" : "أيام") : d === 1 ? "day" : "days"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -444,58 +478,56 @@ export default function PlanTrip() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <DollarSign className="w-5 h-5" />
-          {language === "ar" ? "الميزانية والإقامة" : "Budget & Accommodation"}
+          <Wallet className="w-5 h-5" />
+          {language === "ar" ? "نمط الرحلة" : "Trip Style"}
         </CardTitle>
         <CardDescription>
-          {language === "ar" ? "حدد ميزانيتك ونوع الإقامة المفضل" : "Set your budget and preferred accommodation"}
+          {language === "ar"
+            ? "اختر المستوى الذي يناسب ذوقك وميزانيتك"
+            : "Pick the level that matches your taste and budget"}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="budget">
-            {language === "ar" ? "الميزانية (ريال)" : "Budget (SAR)"}
-          </Label>
-          <Input
-            id="budget"
-            type="number"
-            min="100"
-            step="100"
-            value={budget}
-            onChange={(e) => setBudget(parseInt(e.target.value) || 100)}
-            required
-            data-testid="input-budget"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="accommodation">
-            {language === "ar" ? "نوع الإقامة" : "Accommodation Type"}
-          </Label>
-          <Select value={accommodationType} onValueChange={setAccommodationType}>
-            <SelectTrigger data-testid="select-accommodation">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="فاخر">{language === "ar" ? "فاخر" : "Luxury"}</SelectItem>
-              <SelectItem value="متوسط">{language === "ar" ? "متوسط" : "Mid-range"}</SelectItem>
-              <SelectItem value="اقتصادي">{language === "ar" ? "اقتصادي" : "Economy"}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="mealsPerDay">
-            {language === "ar" ? "عدد الوجبات يومياً" : "Meals per Day"}
-          </Label>
-          <Select value={String(mealsPerDay)} onValueChange={(v) => setMealsPerDay(parseInt(v))}>
-            <SelectTrigger data-testid="select-meals-per-day">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="2">{language === "ar" ? "وجبتان (غداء + عشاء)" : "2 Meals (Lunch + Dinner)"}</SelectItem>
-              <SelectItem value="3">{language === "ar" ? "3 وجبات (فطور + غداء + عشاء)" : "3 Meals (Breakfast + Lunch + Dinner)"}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <CardContent className="space-y-3">
+        {BUDGET_TIER_CARDS.map((tier) => {
+          const isActive = budgetTier === tier.value;
+          const Icon = tier.icon;
+          return (
+            <button
+              key={tier.value}
+              type="button"
+              onClick={() => setBudgetTier(tier.value)}
+              data-testid={`button-budget-${tier.value}`}
+              className={`w-full flex items-center gap-4 rounded-2xl border p-4 text-start transition-all ${
+                isActive
+                  ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20"
+                  : "border-border hover:border-primary/40 hover:bg-muted/40"
+              }`}
+            >
+              <div
+                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+                  isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                <Icon className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold leading-snug">
+                  {language === "ar" ? tier.titleAr : tier.titleEn}
+                </p>
+                <p className="text-sm text-muted-foreground mt-0.5 leading-relaxed">
+                  {language === "ar" ? tier.descAr : tier.descEn}
+                </p>
+              </div>
+              <div
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                  isActive ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/30"
+                }`}
+              >
+                {isActive && <Check className="w-3 h-3" />}
+              </div>
+            </button>
+          );
+        })}
       </CardContent>
     </Card>
   );
@@ -504,40 +536,57 @@ export default function PlanTrip() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Heart className="w-5 h-5" />
-          {language === "ar" ? "اهتماماتك" : "Your Interests"}
+          <Sparkles className="w-5 h-5" />
+          {language === "ar" ? "جو الرحلة" : "Trip Vibe"}
         </CardTitle>
         <CardDescription>
           {language === "ar"
-            ? "اختر الأنشطة التي تفضلها (اختياري)"
-            : "Select activities you prefer (optional)"}
+            ? "اختر الأجواء التي تناسب مزاجك (يمكن اختيار أكثر من جو)"
+            : "Choose the moods that fit you (multi-select)"}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-wrap gap-2">
-          {interestOptions.map((interest) => (
-            <Button
-              key={interest}
-              type="button"
-              variant={interests.includes(interest) ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleInterest(interest)}
-              data-testid={`button-interest-${interest}`}
-            >
-              {interest}
-            </Button>
-          ))}
+        <div className="grid grid-cols-2 gap-3">
+          {MOOD_CARDS.map((mood) => {
+            const isActive = interests.includes(mood.value);
+            const Icon = mood.icon;
+            return (
+              <button
+                key={mood.value}
+                type="button"
+                onClick={() => toggleInterest(mood.value)}
+                data-testid={`button-interest-${mood.value}`}
+                className={`group relative flex flex-col items-center justify-center gap-2 overflow-hidden rounded-2xl border p-5 text-center backdrop-blur-md transition-all ${
+                  isActive
+                    ? "border-primary/60 bg-primary/10 shadow-sm ring-1 ring-primary/25"
+                    : "border-white/40 bg-white/40 hover:border-primary/40 hover:bg-white/60 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                }`}
+              >
+                <div
+                  className={`flex h-11 w-11 items-center justify-center rounded-full transition-colors ${
+                    isActive ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-sm font-semibold leading-snug">
+                  {language === "ar" ? mood.titleAr : mood.titleEn}
+                </span>
+                {isActive && (
+                  <span className="absolute top-2 end-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <Check className="w-3 h-3" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
 
   const renderStep5 = () => {
-    const accomLabels: Record<string, string> = {
-      "فاخر": language === "ar" ? "فاخر" : "Luxury",
-      "متوسط": language === "ar" ? "متوسط" : "Mid-range",
-      "اقتصادي": language === "ar" ? "اقتصادي" : "Economy",
-    };
+    const budgetCard = BUDGET_TIER_CARDS.find((t) => t.value === budgetTier);
 
     return (
       <Card>
@@ -585,47 +634,27 @@ export default function PlanTrip() {
             </div>
 
             <div className="flex items-start gap-3 py-2 border-b border-border">
-              <DollarSign className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              <Wallet className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الميزانية" : "Budget"}
+                  {language === "ar" ? "نمط الرحلة" : "Trip Style"}
                 </p>
-                <p className="font-medium">
-                  {budget} {language === "ar" ? "ريال" : "SAR"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <Hotel className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الإقامة" : "Accommodation"}
-                </p>
-                <p className="font-medium">{accomLabels[accommodationType] || accommodationType}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <UtensilsCrossed className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الوجبات يومياً" : "Meals per Day"}
-                </p>
-                <p className="font-medium" data-testid="text-review-meals">
-                  {mealsPerDay === 3
-                    ? (language === "ar" ? "3 وجبات (فطور + غداء + عشاء)" : "3 Meals (Breakfast + Lunch + Dinner)")
-                    : (language === "ar" ? "وجبتان (غداء + عشاء)" : "2 Meals (Lunch + Dinner)")}
+                <p className="font-medium" data-testid="text-review-budget-tier">
+                  {budgetCard
+                    ? language === "ar"
+                      ? budgetCard.titleAr
+                      : budgetCard.titleEn
+                    : budgetTier}
                 </p>
               </div>
             </div>
 
             {interests.length > 0 && (
               <div className="flex items-start gap-3 py-2">
-                <Heart className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+                <Sparkles className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">
-                    {language === "ar" ? "الاهتمامات" : "Interests"}
+                    {language === "ar" ? "جو الرحلة" : "Vibe"}
                   </p>
                   <div className="flex flex-wrap gap-1">
                     {interests.map((i) => (

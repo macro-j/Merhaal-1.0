@@ -970,70 +970,58 @@ export function resolveDestination(destination: string): DestinationKnowledge | 
   return null;
 }
 
-export function normalizeAccommodation(accommodationType: string): BudgetTier {
-  const value = normalizeText(accommodationType);
-  if (
-    value.includes("فاخر") ||
-    value.includes("luxury") ||
-    value.includes("luxurious") ||
-    value.includes("premium")
-  ) {
-    return "luxury";
-  }
+/**
+ * Map the user-selected Arabic budget tier (اقتصادية / متوسطة / فاخرة) to the
+ * internal tier used by the curated knowledge base.
+ */
+export function resolveBudgetTier(tier: string): BudgetTier {
+  const value = normalizeText(tier);
   if (
     value.includes("اقتصادي") ||
+    value.includes("عمليه") ||
     value.includes("budget") ||
     value.includes("economy") ||
     value.includes("economic")
   ) {
     return "budget";
   }
+  if (
+    value.includes("فاخر") ||
+    value.includes("vip") ||
+    value.includes("luxury") ||
+    value.includes("premium")
+  ) {
+    return "luxury";
+  }
   return "midRange";
 }
 
-/**
- * Interpret the TOTAL trip budget into a quality tier by estimating the daily
- * discretionary budget after accounting for accommodation and meals. The tier is
- * a feasibility/quality signal, not a spending target.
- */
-export function getBudgetTier(
-  totalBudgetSar: number,
-  durationDays: number,
-  accommodationType: string,
-  mealsPerDay: number
-): BudgetTier {
-  const days = Math.max(1, Math.floor(durationDays) || 1);
-  const dailyBudget = (Number(totalBudgetSar) || 0) / days;
-
-  const accommodation = normalizeAccommodation(accommodationType);
-  const accommodationDailyCost =
-    accommodation === "luxury" ? 1200 : accommodation === "midRange" ? 500 : 200;
-
-  // Three meals consume more of the daily budget, leaving less for experiences.
-  const mealsLoad = mealsPerDay >= 3 ? 0.85 : 1;
-
-  const discretionary = (dailyBudget - accommodationDailyCost) * mealsLoad;
-
-  if (discretionary >= 1500) return "luxury";
-  if (discretionary >= 500) return "midRange";
-  return "budget";
-}
-
 const INTEREST_SYNONYMS: Array<{ tags: InterestTag[]; matchers: string[] }> = [
-  { tags: ["culture", "heritage"], matchers: ["ثقافه", "تراث", "culture", "heritage"] },
+  // New "Mood" vocabulary
   {
-    tags: ["shopping", "entertainment"],
-    matchers: ["تسوق", "ترفيه", "shopping", "entertainment"],
+    tags: ["culture", "heritage"],
+    matchers: ["عريق", "تراثي", "تراث", "ثقافه", "culture", "heritage"],
   },
+  {
+    tags: ["food", "restaurants", "shopping", "entertainment"],
+    matchers: ["ترند", "لايف", "ستايل", "trend", "lifestyle"],
+  },
+  {
+    tags: ["nature", "relaxation"],
+    matchers: ["استرخاء", "طبيعه", "relax", "relaxation", "nature"],
+  },
+  {
+    tags: ["entertainment", "family", "adventure"],
+    matchers: ["حيويه", "ترفيه", "entertainment", "fun"],
+  },
+  // Legacy labels (kept for backward compatibility)
+  { tags: ["shopping", "entertainment"], matchers: ["تسوق", "shopping"] },
   { tags: ["family", "kids"], matchers: ["عائلي", "اطفال", "family", "kids", "children"] },
   {
     tags: ["food", "restaurants"],
     matchers: ["طعام", "مطاعم", "food", "restaurants", "dining"],
   },
-  {
-    tags: ["adventure", "sports"],
-    matchers: ["مغامرات", "رياضه", "adventure", "sports", "nature", "طبيعه"],
-  },
+  { tags: ["adventure", "sports"], matchers: ["مغامرات", "رياضه", "adventure", "sports"] },
 ];
 
 /**

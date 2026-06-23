@@ -8,7 +8,6 @@ import {
   Calendar,
   CalendarDays,
   MapPin,
-  Users,
   Wallet,
   MapPinOff,
   ArrowRight,
@@ -91,7 +90,7 @@ export default function TripDetails() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="flex items-center gap-3 rounded-xl bg-background/80 border p-4">
                   <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <CalendarDays className="w-5 h-5 text-primary" />
@@ -109,18 +108,8 @@ export default function TripDetails() {
                     <Wallet className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">الميزانية</p>
-                    <p className="font-semibold">{trip.budget.toLocaleString("ar-SA")} ريال</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 rounded-xl bg-background/80 border p-4 sm:col-span-1">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <Users className="w-5 h-5 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs text-muted-foreground">نوع المجموعة</p>
-                    <p className="font-semibold text-sm leading-snug truncate">{trip.companions}</p>
+                    <p className="text-xs text-muted-foreground">نمط الرحلة</p>
+                    <p className="font-semibold">{trip.budgetTier || "—"}</p>
                   </div>
                 </div>
               </div>

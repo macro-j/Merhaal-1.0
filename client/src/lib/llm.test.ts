@@ -168,18 +168,22 @@ describe("buildSystemPrompt", () => {
   const baseParams: GenerateTripParams = {
     destination: "الرياض",
     durationDays: 3,
-    totalBudgetSar: 3000,
-    accommodationType: "متوسط",
-    mealsPerDay: 2,
-    interests: ["ثقافة وتراث"],
+    budgetTier: "متوسطة",
+    interests: ["عريق وتراثي"],
     language: "ar",
   };
 
-  it("embeds curated Riyadh knowledge and the interpreted budget tier", () => {
+  it("embeds curated Riyadh knowledge and the selected budget/style tier", () => {
     const prompt = buildSystemPrompt(baseParams);
     expect(prompt).toContain("At-Turaif World Heritage Site, Diriyah");
-    expect(prompt).toContain("interpreted budget tier: midRange");
-    expect(prompt).toContain("estimated daily budget in SAR: 1000");
+    expect(prompt).toContain("Budget & Style: متوسطة (internal tier: midRange)");
+    expect(prompt).toContain("عريق وتراثي");
+    expect(prompt).toContain("<role>");
+  });
+
+  it("maps the luxury tier correctly", () => {
+    const prompt = buildSystemPrompt({ ...baseParams, budgetTier: "فاخرة" });
+    expect(prompt).toContain("Budget & Style: فاخرة (internal tier: luxury)");
   });
 
   it("uses the strict fallback when the destination is unknown", () => {

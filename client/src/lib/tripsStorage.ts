@@ -6,6 +6,8 @@ export interface SavedTrip extends GeneratedTripPlan {
   id: string;
   createdAt: string;
   budgetTier: string;
+  totalBudgetSAR?: number;
+  mealsPerDay?: 2 | 3;
   interests: string[];
   startDate?: string;
   dayCount: number;

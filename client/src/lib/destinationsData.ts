@@ -16,6 +16,27 @@ export type BudgetTier = "budget" | "midRange" | "luxury";
 
 export type AudienceFit = "families" | "couples" | "friends" | "solo" | "business";
 
+export type MealSlot = "فطور" | "غداء" | "عشاء" | "قهوة" | "لا ينطبق";
+
+export type PlaceRole =
+  | "بداية اليوم"
+  | "نشاط رئيسي"
+  | "استراحة"
+  | "وجبة"
+  | "ختام اليوم";
+
+export type WeatherSensitivity =
+  | "مناسب دائماً"
+  | "تجنب وقت الظهر"
+  | "مناسب للأجواء الباردة"
+  | "داخلي ومناسب للحر";
+
+export type BookingDifficulty =
+  | "لا يحتاج"
+  | "يفضل الحجز"
+  | "الحجز ضروري"
+  | "تذاكر مسبقة";
+
 export type InterestTag =
   | "culture"
   | "heritage"
@@ -45,7 +66,35 @@ export type DestinationPlace = {
   shortDescription: string;
   planningNotes: string;
   coordinates?: { lat: number; lng: number };
+  mealSlot: MealSlot[];
+  placeRole: PlaceRole[];
+  weatherSensitivity: WeatherSensitivity;
+  bookingDifficulty: BookingDifficulty;
+  minRecommendedBudgetSAR?: number;
+  maxRecommendedBudgetSAR?: number;
+  nearbyPlaceIds?: string[];
+  sameAreaPlaceIds?: string[];
+  badRouteWithPlaceIds?: string[];
+  minimumAgeSuitable?: number;
+  familyFriendlyScore: number;
+  luxuryScore: number;
+  localAuthenticityScore: number;
+  trendScore: number;
+  priorityScore: number;
 };
+
+type DestinationPlaceSeed = Omit<
+  DestinationPlace,
+  | "mealSlot"
+  | "placeRole"
+  | "weatherSensitivity"
+  | "bookingDifficulty"
+  | "familyFriendlyScore"
+  | "luxuryScore"
+  | "localAuthenticityScore"
+  | "trendScore"
+  | "priorityScore"
+>;
 
 export type LatLng = {
   lat: number;
@@ -61,7 +110,11 @@ export type DestinationKnowledge = {
   places: DestinationPlace[];
 };
 
-const RIYADH: DestinationKnowledge = {
+type DestinationKnowledgeSeed = Omit<DestinationKnowledge, "places"> & {
+  places: DestinationPlaceSeed[];
+};
+
+const RIYADH: DestinationKnowledgeSeed = {
   canonicalName: "Riyadh",
   arabicName: "الرياض",
   englishName: "Riyadh",
@@ -360,7 +413,7 @@ const RIYADH: DestinationKnowledge = {
   ],
 };
 
-const JEDDAH: DestinationKnowledge = {
+const JEDDAH: DestinationKnowledgeSeed = {
   canonicalName: "Jeddah",
   arabicName: "جدة",
   englishName: "Jeddah",
@@ -498,7 +551,7 @@ const JEDDAH: DestinationKnowledge = {
   ],
 };
 
-const TAIF: DestinationKnowledge = {
+const TAIF: DestinationKnowledgeSeed = {
   canonicalName: "Taif",
   arabicName: "الطائف",
   englishName: "Taif",
@@ -620,7 +673,7 @@ const TAIF: DestinationKnowledge = {
   ],
 };
 
-const ABHA: DestinationKnowledge = {
+const ABHA: DestinationKnowledgeSeed = {
   canonicalName: "Abha",
   arabicName: "أبها",
   englishName: "Abha",
@@ -742,7 +795,7 @@ const ABHA: DestinationKnowledge = {
   ],
 };
 
-const ALULA: DestinationKnowledge = {
+const ALULA: DestinationKnowledgeSeed = {
   canonicalName: "AlUla",
   arabicName: "العلا",
   englishName: "AlUla",
@@ -864,7 +917,7 @@ const ALULA: DestinationKnowledge = {
   ],
 };
 
-export const DESTINATIONS_KNOWLEDGE: DestinationKnowledge[] = [
+const DESTINATIONS_KNOWLEDGE_SEED: DestinationKnowledgeSeed[] = [
   RIYADH,
   JEDDAH,
   TAIF,
@@ -929,11 +982,132 @@ const PLACE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "alula-oasis-trail": { lat: 26.62, lng: 37.92 },
 };
 
-for (const destination of DESTINATIONS_KNOWLEDGE) {
-  for (const place of destination.places) {
-    place.coordinates = PLACE_COORDINATES[place.id];
-  }
+function clampScore(value: number): number {
+  return Math.max(1, Math.min(10, Math.round(value)));
 }
+
+function getMealSlots(place: DestinationPlaceSeed): MealSlot[] {
+  if (place.category === "cafe") return ["قهوة"];
+  if (place.category === "dining") {
+    if (place.recommendedTime.includes("morning")) return ["فطور", "غداء", "عشاء"];
+    if (place.recommendedTime.includes("afternoon")) return ["غداء", "عشاء"];
+    return ["عشاء"];
+  }
+  return ["لا ينطبق"];
+}
+
+function getPlaceRoles(place: DestinationPlaceSeed): PlaceRole[] {
+  const roles = new Set<PlaceRole>();
+  if (place.recommendedTime.includes("morning")) roles.add("بداية اليوم");
+  if (place.category === "cafe") roles.add("استراحة");
+  if (place.category === "dining") roles.add("وجبة");
+  if (place.recommendedTime.includes("evening") || place.recommendedTime.includes("night")) {
+    roles.add("ختام اليوم");
+  }
+  if (place.category !== "cafe" && place.category !== "dining") roles.add("نشاط رئيسي");
+  return Array.from(roles);
+}
+
+function getWeatherSensitivity(place: DestinationPlaceSeed): WeatherSensitivity {
+  if (
+    place.category === "dining" ||
+    place.category === "cafe" ||
+    place.category === "shopping" ||
+    place.category === "modern" ||
+    place.category === "family"
+  ) {
+    return "داخلي ومناسب للحر";
+  }
+  if (place.category === "nature" || place.category === "adventure") {
+    return "تجنب وقت الظهر";
+  }
+  if (place.area.includes("Al Soudah") || place.area.includes("Al Shafa") || place.area.includes("Al Hada")) {
+    return "مناسب للأجواء الباردة";
+  }
+  return "مناسب دائماً";
+}
+
+function getBookingDifficulty(place: DestinationPlaceSeed): BookingDifficulty {
+  const text = `${place.shortDescription} ${place.planningNotes}`;
+  if (text.includes("تذاكر") || text.includes("جولة منظّمة") || text.includes("تحقق من مواعيد التشغيل")) {
+    return "تذاكر مسبقة";
+  }
+  if (text.includes("يتطلب حجز") || text.includes("الحجز") || text.includes("احجز")) {
+    return "الحجز ضروري";
+  }
+  if (place.category === "dining" || place.category === "luxury") return "يفضل الحجز";
+  return "لا يحتاج";
+}
+
+function getPriorityScore(place: DestinationPlaceSeed): number {
+  let score = 58;
+  if (place.category === "heritage" || place.category === "luxury") score += 18;
+  if (place.category === "nature" || place.category === "entertainment") score += 12;
+  if (place.budgetLevel.includes("luxury")) score += 5;
+  if (place.interests.includes("heritage") || place.interests.includes("culture")) score += 7;
+  if (place.interests.includes("food") || place.interests.includes("restaurants")) score += 4;
+  return Math.max(1, Math.min(100, score));
+}
+
+function enrichPlace(place: DestinationPlaceSeed): DestinationPlace {
+  const luxuryScore = clampScore(
+    (place.budgetLevel.includes("luxury") ? 7 : 3) +
+      (place.category === "luxury" || place.category === "dining" ? 2 : 0)
+  );
+  const trendScore = clampScore(
+    (place.category === "cafe" || place.category === "dining" || place.category === "modern" ? 7 : 3) +
+      (place.interests.includes("entertainment") || place.interests.includes("shopping") ? 2 : 0)
+  );
+  const localAuthenticityScore = clampScore(
+    (place.category === "heritage" ? 9 : 3) +
+      (place.interests.includes("culture") || place.interests.includes("heritage") ? 1 : 0)
+  );
+  const familyFriendlyScore = clampScore(
+    (place.bestFor.includes("families") ? 8 : 4) +
+      (place.interests.includes("family") || place.interests.includes("kids") ? 1 : 0)
+  );
+
+  return {
+    ...place,
+    coordinates: PLACE_COORDINATES[place.id],
+    mealSlot: getMealSlots(place),
+    placeRole: getPlaceRoles(place),
+    weatherSensitivity: getWeatherSensitivity(place),
+    bookingDifficulty: getBookingDifficulty(place),
+    sameAreaPlaceIds: [],
+    nearbyPlaceIds: [],
+    familyFriendlyScore,
+    luxuryScore,
+    localAuthenticityScore,
+    trendScore,
+    priorityScore: getPriorityScore(place),
+  };
+}
+
+function enrichDestination(destination: DestinationKnowledgeSeed): DestinationKnowledge {
+  const places = destination.places.map(enrichPlace);
+  return {
+    ...destination,
+    places: places.map((place) => ({
+      ...place,
+      sameAreaPlaceIds: places
+        .filter((candidate) => candidate.id !== place.id && candidate.area === place.area)
+        .map((candidate) => candidate.id),
+      nearbyPlaceIds: places
+        .filter(
+          (candidate) =>
+            candidate.id !== place.id &&
+            (candidate.area === place.area ||
+              candidate.area.includes(place.area) ||
+              place.area.includes(candidate.area))
+        )
+        .map((candidate) => candidate.id),
+    })),
+  };
+}
+
+export const DESTINATIONS_KNOWLEDGE: DestinationKnowledge[] =
+  DESTINATIONS_KNOWLEDGE_SEED.map(enrichDestination);
 
 export function normalizeText(value: string): string {
   return (value || "")

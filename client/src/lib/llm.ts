@@ -2,12 +2,16 @@ import OpenAI from "openai";
 import {
   findForbiddenPhrases,
   findKnowledgePlace,
-  getDestinationKnowledgeForPrompt,
   normalizeInterests,
   normalizeText,
   resolveBudgetTier,
   resolveDestination,
+  type BudgetTier,
   type DestinationKnowledge,
+  type DestinationPlace,
+  type InterestTag,
+  type MealSlot,
+  type TimeBlock,
 } from "@/lib/destinationsData";
 
 export type TripActivityTime = "الصباح" | "الظهر" | "المساء";
@@ -69,9 +73,39 @@ export interface GenerateTripParams {
   /** Constrained to 1..7 by the UI. */
   durationDays: number;
   budgetTier: ArabicBudgetTier;
+  totalBudgetSAR?: number;
+  accommodationType?: ArabicBudgetTier;
+  mealsPerDay?: 2 | 3;
   interests: TripMood[];
   language: OutputLanguage;
   startDate?: string;
+}
+
+export type CityName = "الرياض" | "جدة" | "الطائف" | "أبها" | "العلا";
+
+export interface NormalizedTripInputs {
+  city: CityName;
+  startDate: string;
+  durationDays: number;
+  totalBudgetSAR: number;
+  dailyBudgetSAR: number;
+  budgetTier: BudgetTier;
+  accommodationType: BudgetTier;
+  mealsPerDay: 2 | 3;
+  moods: TripMood[];
+  language: OutputLanguage;
+}
+
+export interface ScoredPlace {
+  place: DestinationPlace;
+  score: number;
+}
+
+export interface DayCandidates {
+  dayNumber: number;
+  الصباح: DestinationPlace[];
+  الظهر: DestinationPlace[];
+  المساء: DestinationPlace[];
 }
 
 const MODEL = "llama-3.3-70b-versatile";
@@ -217,6 +251,221 @@ function stripMarkdownJson(raw: string): string {
   return text.trim();
 }
 
+function toArabicBudgetTier(tier: string | undefined): ArabicBudgetTier {
+  const normalized = resolveBudgetTier(tier || "متوسطة");
+  if (normalized === "budget") return "اقتصادية";
+  if (normalized === "luxury") return "فاخرة";
+  return "متوسطة";
+}
+
+function toCityName(destination: string): CityName {
+  const resolved = resolveDestination(destination);
+  const city = resolved?.arabicName;
+  if (city === "الرياض" || city === "جدة" || city === "الطائف" || city === "أبها" || city === "العلا") {
+    return city;
+  }
+  return "الرياض";
+}
+
+export function getBudgetTier(
+  totalBudgetSAR: number,
+  durationDays: number,
+  accommodationType: string,
+  mealsPerDay: 2 | 3
+): BudgetTier {
+  const days = Math.max(1, Math.min(7, Math.round(durationDays || 1)));
+  const total = Math.max(0, Number(totalBudgetSAR) || 0);
+  const dailyBudgetSAR = total / days;
+  const accommodation = resolveBudgetTier(accommodationType);
+  const accommodationLoad = accommodation === "luxury" ? 900 : accommodation === "midRange" ? 450 : 180;
+  const mealsLoad = mealsPerDay === 3 ? 260 : 180;
+  const discretionary = dailyBudgetSAR - accommodationLoad - mealsLoad;
+
+  if (dailyBudgetSAR >= 3000 || discretionary >= 1400) return "luxury";
+  if (dailyBudgetSAR >= 850 || discretionary >= 250) return "midRange";
+  return "budget";
+}
+
+export function normalizeTripInputs(rawInputs: GenerateTripParams): NormalizedTripInputs {
+  const durationDays = Math.max(1, Math.min(7, Math.round(rawInputs.durationDays || 1)));
+  const accommodationTier = resolveBudgetTier(rawInputs.accommodationType || rawInputs.budgetTier);
+  const mealsPerDay: 2 | 3 = rawInputs.mealsPerDay === 3 ? 3 : 2;
+  const fallbackDailyBudget =
+    accommodationTier === "luxury" ? 3200 : accommodationTier === "midRange" ? 1000 : 450;
+  const totalBudgetSAR =
+    typeof rawInputs.totalBudgetSAR === "number" && rawInputs.totalBudgetSAR > 0
+      ? rawInputs.totalBudgetSAR
+      : fallbackDailyBudget * durationDays;
+  const dailyBudgetSAR = Math.round(totalBudgetSAR / durationDays);
+
+  return {
+    city: toCityName(rawInputs.destination),
+    startDate: rawInputs.startDate || "",
+    durationDays,
+    totalBudgetSAR,
+    dailyBudgetSAR,
+    budgetTier: getBudgetTier(
+      totalBudgetSAR,
+      durationDays,
+      rawInputs.accommodationType || rawInputs.budgetTier,
+      mealsPerDay
+    ),
+    accommodationType: accommodationTier,
+    mealsPerDay,
+    moods: rawInputs.interests,
+    language: rawInputs.language,
+  };
+}
+
+function moodTags(moods: TripMood[]): InterestTag[] {
+  return normalizeInterests(moods);
+}
+
+function budgetAllowed(place: DestinationPlace, tier: BudgetTier): boolean {
+  if (place.budgetLevel.includes(tier)) return true;
+  if (tier === "luxury" && place.budgetLevel.includes("midRange")) return place.priorityScore >= 70;
+  if (tier === "midRange" && place.budgetLevel.includes("budget")) return place.priorityScore >= 70;
+  return false;
+}
+
+export function filterPlaces(
+  city: CityName,
+  budgetTier: BudgetTier,
+  moods: TripMood[]
+): DestinationPlace[] {
+  const knowledge = resolveDestination(city);
+  if (!knowledge) return [];
+  const tags = moodTags(moods);
+
+  return knowledge.places
+    .filter((place) => {
+      const matchesMood =
+        tags.length === 0 || place.interests.some((interest) => tags.includes(interest));
+      return matchesMood && budgetAllowed(place, budgetTier);
+    })
+    .sort((a, b) => b.priorityScore - a.priorityScore);
+}
+
+function timeBlockMatches(place: DestinationPlace, block?: TimeBlock): number {
+  if (!block) return 0;
+  return place.recommendedTime.includes(block) ? 10 : -4;
+}
+
+function mealSlotMatches(place: DestinationPlace, mealSlot?: MealSlot): number {
+  if (!mealSlot || mealSlot === "لا ينطبق") return 0;
+  return place.mealSlot.includes(mealSlot) ? 10 : place.mealSlot.includes("لا ينطبق") ? -3 : 0;
+}
+
+export function scorePlaces(
+  places: DestinationPlace[],
+  context: NormalizedTripInputs & { timeBlock?: TimeBlock; mealSlot?: MealSlot }
+): ScoredPlace[] {
+  const tags = moodTags(context.moods);
+  const isFamily = tags.includes("family") || tags.includes("kids");
+
+  return places
+    .map((place) => {
+      let score = place.priorityScore;
+      score += place.budgetLevel.includes(context.budgetTier) ? 18 : 4;
+      score += place.interests.filter((interest) => tags.includes(interest)).length * 10;
+      score += timeBlockMatches(place, context.timeBlock);
+      score += mealSlotMatches(place, context.mealSlot);
+      if (context.budgetTier === "luxury") score += place.luxuryScore * 2;
+      if (context.moods.includes("ترند ولايف ستايل")) score += place.trendScore * 2;
+      if (context.moods.includes("عريق وتراثي")) score += place.localAuthenticityScore * 2;
+      if (isFamily) score += place.familyFriendlyScore * 2;
+      if (context.timeBlock === "afternoon" && place.weatherSensitivity === "داخلي ومناسب للحر") {
+        score += 12;
+      }
+      if (context.timeBlock === "afternoon" && place.weatherSensitivity === "تجنب وقت الظهر") {
+        score -= 12;
+      }
+      return { place, score };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
+function uniquePlaces(places: DestinationPlace[]): DestinationPlace[] {
+  const seen = new Set<string>();
+  return places.filter((place) => {
+    if (seen.has(place.id)) return false;
+    seen.add(place.id);
+    return true;
+  });
+}
+
+export function buildDayCandidates(
+  scoredPlaces: ScoredPlace[],
+  context: NormalizedTripInputs
+): DayCandidates[] {
+  const unused = [...scoredPlaces.map((p) => p.place)];
+  const days: DayCandidates[] = [];
+
+  for (let day = 1; day <= context.durationDays; day += 1) {
+    const morning = scorePlaces(unused, { ...context, timeBlock: "morning" })
+      .filter(({ place }) =>
+        ["heritage", "nature", "cafe", "modern"].includes(place.category)
+      )
+      .slice(0, 6)
+      .map(({ place }) => place);
+    const afternoonMeal: MealSlot = context.mealsPerDay === 3 ? "غداء" : "غداء";
+    const afternoon = scorePlaces(unused, {
+      ...context,
+      timeBlock: "afternoon",
+      mealSlot: afternoonMeal,
+    })
+      .filter(({ place }) =>
+        ["dining", "cafe", "heritage", "shopping", "family", "modern"].includes(place.category)
+      )
+      .slice(0, 8)
+      .map(({ place }) => place);
+    const evening = scorePlaces(unused, { ...context, timeBlock: "evening", mealSlot: "عشاء" })
+      .filter(({ place }) =>
+        ["dining", "cafe", "luxury", "entertainment", "shopping", "nature", "modern"].includes(
+          place.category
+        )
+      )
+      .slice(0, 8)
+      .map(({ place }) => place);
+
+    const selected = uniquePlaces([...morning.slice(0, 1), ...afternoon.slice(0, 2), ...evening.slice(0, 2)]);
+    for (const place of selected) {
+      const index = unused.findIndex((candidate) => candidate.id === place.id);
+      if (index >= 0) unused.splice(index, 1);
+    }
+
+    days.push({
+      dayNumber: day,
+      الصباح: morning,
+      الظهر: afternoon,
+      المساء: evening,
+    });
+  }
+
+  return days;
+}
+
+function formatCandidate(place: DestinationPlace): string {
+  return [
+    `id: ${place.id}`,
+    `name: ${place.name}`,
+    `arabicName: ${place.arabicName}`,
+    `mapSearchQuery: ${place.mapSearchQuery}`,
+    `area: ${place.area}`,
+    `category: ${place.category}`,
+    `recommendedTime: ${place.recommendedTime.join(", ")}`,
+    `mealSlot: ${place.mealSlot.join(", ")}`,
+    `placeRole: ${place.placeRole.join(", ")}`,
+    `bookingDifficulty: ${place.bookingDifficulty}`,
+    `weatherSensitivity: ${place.weatherSensitivity}`,
+    `notes: ${place.shortDescription} ${place.planningNotes}`,
+  ].join(" | ");
+}
+
+function getAllowedPlacesFromDays(days: DayCandidates[]): DestinationPlace[] {
+  return uniquePlaces(days.flatMap((day) => [...day.الصباح, ...day.الظهر, ...day.المساء]));
+}
+
 function describeInterests(params: GenerateTripParams): string {
   if (!params.interests.length) {
     return params.language === "ar" ? "عام (بدون تفضيل محدد)" : "general (no specific preference)";
@@ -224,9 +473,31 @@ function describeInterests(params: GenerateTripParams): string {
   return params.interests.join(params.language === "ar" ? "، " : ", ");
 }
 
-export function buildSystemPrompt(params: GenerateTripParams): string {
-  const knowledgeBlock = getDestinationKnowledgeForPrompt(params.destination);
-  const budgetTier = resolveBudgetTier(params.budgetTier);
+export function buildSystemPrompt(params: GenerateTripParams, dayCandidates?: DayCandidates[]): string {
+  const normalized = normalizeTripInputs(params);
+  const candidates =
+    dayCandidates ??
+    buildDayCandidates(
+      scorePlaces(filterPlaces(normalized.city, normalized.budgetTier, normalized.moods), normalized),
+      normalized
+    );
+  const allowedPlaces = getAllowedPlacesFromDays(candidates);
+  const candidateBlock = candidates
+    .map(
+      (day) => `<day number="${day.dayNumber}">
+<morning>
+${day.الصباح.map(formatCandidate).join("\n")}
+</morning>
+<afternoon>
+${day.الظهر.map(formatCandidate).join("\n")}
+</afternoon>
+<evening>
+${day.المساء.map(formatCandidate).join("\n")}
+</evening>
+</day>`
+    )
+    .join("\n\n");
+  const budgetTier = normalized.budgetTier;
   const interestTags = normalizeInterests(params.interests);
   const languageName = params.language === "ar" ? "Arabic" : "English";
 
@@ -241,25 +512,36 @@ You are an elite, highly sought-after Saudi Travel Concierge. Your tone is premi
 </role>
 
 <user_profile>
-- Destination: ${params.destination}
-- Duration: ${params.durationDays} day(s)
-- Start date: ${params.startDate || "not specified"}
+- Destination: ${normalized.city}
+- Duration: ${normalized.durationDays} day(s)
+- Start date: ${normalized.startDate || "not specified"}
+- Total trip budget SAR: ${normalized.totalBudgetSAR}
+- Daily budget estimate SAR: ${normalized.dailyBudgetSAR}
 - Budget & Style: ${params.budgetTier} (internal tier: ${budgetTier})
+- Accommodation type: ${normalized.accommodationType}
+- Meals per day: ${normalized.mealsPerDay}
 - Vibe & Moods: ${moodList}${interestTags.length ? ` (tags: ${interestTags.join(", ")})` : ""}
 </user_profile>
 
-<curated_places>
-CRITICAL: These are the only real, hand-picked places you may use. SELECT from this list — never invent generic places. At least 60% of activities MUST come from this list, and each day should stay geographically focused on one area or nearby areas.
-${knowledgeBlock}
-</curated_places>
+<allowed_candidate_places>
+CRITICAL: These are the ONLY locations you may use. Do not use the full knowledge base. Do not invent any location. Every activity.locationName MUST exactly match one of the provided candidate "name", "arabicName", or "mapSearchQuery" values below.
+${candidateBlock}
+</allowed_candidate_places>
+
+<allowed_location_values>
+${allowedPlaces
+  .flatMap((place) => [place.name, place.arabicName, place.mapSearchQuery])
+  .map((name) => `- ${name}`)
+  .join("\n")}
+</allowed_location_values>
 
 <strict_time_and_logic_laws>
 CRITICAL: You must obey the physics of time and the reality of Saudi tourism.
-1. MORNINGS (08:00 - 12:00) -> time = "الصباح": ONLY Heritage sites (e.g., At-Turaif, museums), Nature (Wadi Hanifah, parks, viewpoints), or Breakfast/Brunch cafes. NEVER schedule entertainment zones or malls here.
-2. AFTERNOONS (12:00 - 17:00) -> time = "الظهر": indoor/shaded activities, premium lunches, museums, or relaxed walks.
-3. EVENINGS/NIGHTS (17:00 - 23:59) -> time = "المساء": THIS is when you schedule "Trendy & Lifestyle" or "Vibrant & Entertainment" places (e.g., Boulevard World, VIA Riyadh, KAFD, fine dining, waterfronts, boulevards).
+1. MORNINGS (08:00 - 12:00) -> time = "الصباح": select from that day's <morning> candidates only. Prefer heritage, nature, scenic starts, iconic landmarks, or breakfast/brunch cafes. NEVER schedule entertainment zones or malls here.
+2. AFTERNOONS (12:00 - 17:00) -> time = "الظهر": select from that day's <afternoon> candidates only. Prefer indoor/shaded activities, premium lunches, museums, malls, or relaxed walks.
+3. EVENINGS/NIGHTS (17:00 - 23:59) -> time = "المساء": select from that day's <evening> candidates only. This is when you schedule trendy/lifestyle, entertainment, fine dining, waterfronts, viewpoints, and premium areas.
 4. NO DEAD TIME: the gap between the END of one activity and the START of the next MUST NOT exceed 3 hours (180 min). Keep only realistic transitions (~20-45 min). If one ends at 11:30, the next must start by 14:30 at the latest.
-5. DENSITY: provide EXACTLY 4 to 5 activities per day — never fewer than 4.
+5. DENSITY: provide EXACTLY 4 to 5 activities per day — never fewer than 4 and never more than 5.
 6. CLOCK FIELDS: every activity MUST have 24-hour "startTime" and "endTime" ("HH:MM"), chronological and non-overlapping, with "time" matching the block above. Realistic durations: heritage/museum ~1.5-2.5h, coffee ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, major attraction ~2-3h.
 7. ASYMMETRIC PACING: do NOT reuse an identical daily template — vary start times and mood (e.g. one day ends late at a trendy cafe, another starts early for heritage). Never repeat the same place across days unless duration forces it.
 </strict_time_and_logic_laws>
@@ -272,7 +554,7 @@ Match the places to "${params.budgetTier}":
 </style_mapping_laws>
 
 <dining_laws>
-Weave 1-2 real meal moments (lunch + dinner) plus a trendy coffee stop into each day, all chosen from the curated dining/cafe list. Never use generic restaurant names. Dining and coffee count toward the 4-5 daily activities.
+Respect mealsPerDay = ${normalized.mealsPerDay}. If 2, include exactly two meal activities per day (usually غداء + عشاء). If 3, include exactly three meal activities per day (فطور + غداء + عشاء). A coffee stop may be included when it does not replace the required meal count. All dining/coffee must come from the allowed candidates.
 </dining_laws>
 
 <accommodation_law>
@@ -319,6 +601,8 @@ export interface ItineraryValidationContext {
   language: OutputLanguage;
   knowledge: DestinationKnowledge | null;
   durationDays: number;
+  normalized?: NormalizedTripInputs;
+  allowedPlaces?: DestinationPlace[];
 }
 
 export interface ItineraryValidationResult {
@@ -343,6 +627,41 @@ function parseTimeToMinutes(value: unknown): number | null {
   const minutes = Number(match[2]);
   if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
   return hours * 60 + minutes;
+}
+
+function isAllowedLocation(locationName: string, allowedPlaces: DestinationPlace[]): boolean {
+  const normalized = normalizeText(locationName);
+  return allowedPlaces.some((place) =>
+    [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
+      .map(normalizeText)
+      .some((candidate) => normalized === candidate || normalized.includes(candidate) || candidate.includes(normalized))
+  );
+}
+
+function isMealActivity(locationName: string, allowedPlaces: DestinationPlace[]): boolean {
+  const place = allowedPlaces.find((candidate) =>
+    [candidate.name, candidate.arabicName, candidate.englishName, candidate.mapSearchQuery]
+      .map(normalizeText)
+      .some((name) => normalizeText(locationName).includes(name) || name.includes(normalizeText(locationName)))
+  );
+  return Boolean(place && !place.mealSlot.includes("لا ينطبق"));
+}
+
+function findAllowedPlace(locationName: string, allowedPlaces: DestinationPlace[]): DestinationPlace | null {
+  const normalized = normalizeText(locationName);
+  return (
+    allowedPlaces.find((place) =>
+      [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
+        .map(normalizeText)
+        .some((name) => normalized === name || normalized.includes(name) || name.includes(normalized))
+    ) ?? null
+  );
+}
+
+function activityTimeToBlocks(time: TripActivityTime): TimeBlock[] {
+  if (time === "الصباح") return ["morning"];
+  if (time === "الظهر") return ["afternoon"];
+  return ["evening", "night"];
 }
 
 /**
@@ -371,6 +690,9 @@ export function validateGeneratedItinerary(
     errors.push("Missing or empty 'days' array.");
     return { valid: false, errors };
   }
+  if (plan.days.length !== context.durationDays) {
+    errors.push(`Expected ${context.durationDays} days, got ${plan.days.length}.`);
+  }
 
   const seenLocations = new Map<string, number>();
   let totalActivities = 0;
@@ -388,9 +710,13 @@ export function validateGeneratedItinerary(
         `${dayLabel}: generated only ${day.activities.length} activities. You must generate at least ${MIN_ACTIVITIES_PER_DAY} distinct activities per day.`
       );
     }
+    if (day.activities.length > 5) {
+      errors.push(`${dayLabel}: generated ${day.activities.length} activities. You must generate no more than 5 activities per day.`);
+    }
 
     const areasInDay = new Set<string>();
     const timeSlots: Array<{ start: number; end: number; label: string }> = [];
+    let mealActivities = 0;
 
     day.activities.forEach((activity, actIdx) => {
       totalActivities += 1;
@@ -462,11 +788,35 @@ export function validateGeneratedItinerary(
         const key = normalizeText(location);
         seenLocations.set(key, (seenLocations.get(key) || 0) + 1);
 
+        if (context.allowedPlaces?.length && !isAllowedLocation(location, context.allowedPlaces)) {
+          errors.push(`${where}: location "${location}" is not in the allowed candidate places.`);
+        }
+        const allowedPlace = context.allowedPlaces?.length
+          ? findAllowedPlace(location, context.allowedPlaces)
+          : null;
+        if (allowedPlace && allowedPlace.category !== "dining" && allowedPlace.category !== "cafe") {
+          const compatibleBlocks = activityTimeToBlocks(activity.time);
+          if (!allowedPlace.recommendedTime.some((block) => compatibleBlocks.includes(block))) {
+            errors.push(
+              `${where}: "${allowedPlace.name}" is not appropriate for time block "${activity.time}".`
+            );
+          }
+        }
+        if (context.allowedPlaces?.length && isMealActivity(location, context.allowedPlaces)) {
+          mealActivities += 1;
+        }
+
         const place = context.knowledge
           ? findKnowledgePlace(location, context.knowledge)
           : null;
         if (place) {
           knowledgeMatches += 1;
+          if (
+            (place.bookingDifficulty === "الحجز ضروري" || place.bookingDifficulty === "تذاكر مسبقة") &&
+            !/(حجز|تذاكر|ticket|book|reservation|reserve)/i.test(description)
+          ) {
+            errors.push(`${where}: "${place.name}" requires booking/tickets; mention that in the description.`);
+          }
           // Only anchor attractions constrain a day's geography; cafes and dining
           // can sit anywhere in the city (e.g. a late-night trendy cafe).
           if (place.category !== "cafe" && place.category !== "dining") {
@@ -475,6 +825,12 @@ export function validateGeneratedItinerary(
         }
       }
     });
+
+    if (context.normalized && context.allowedPlaces?.length && mealActivities !== context.normalized.mealsPerDay) {
+      errors.push(
+        `${dayLabel}: expected exactly ${context.normalized.mealsPerDay} meal activities, got ${mealActivities}.`
+      );
+    }
 
     // No dead time: gaps between consecutive activities must not exceed 3 hours.
     const ordered = [...timeSlots].sort((a, b) => a.start - b.start);
@@ -537,7 +893,7 @@ async function requestItinerary(
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: 0.7,
+    temperature: 0.15,
     response_format: { type: "json_object" },
   });
 
@@ -566,16 +922,17 @@ async function requestItinerary(
 export async function repairGeneratedItineraryIfNeeded(
   client: OpenAI,
   params: GenerateTripParams,
-  validationErrors: string[]
+  validationErrors: string[],
+  dayCandidates: DayCandidates[]
 ): Promise<GeneratedTripPlan> {
-  const systemPrompt = buildSystemPrompt(params);
+  const systemPrompt = buildSystemPrompt(params, dayCandidates);
   const repairPrompt = `Your previous itinerary was REJECTED for these reasons:
 ${validationErrors.map((e) => `- ${e}`).join("\n")}
 
-Regenerate the FULL itinerary for ${params.destination} fixing every issue above.
-Use ONLY real, specific, searchable places (prioritize the curated knowledge base).
-Keep each day geographically focused, avoid generic phrases, avoid repeating locations,
-and write every description with concrete, premium detail. Return JSON only.`;
+Fix ONLY invalid fields. Do not change valid logistics unless required by the errors.
+Use ONLY the allowed candidate places in the system prompt.
+Every locationName must exactly match an allowed candidate name, arabicName, or mapSearchQuery.
+Return the FULL itinerary as JSON only.`;
 
   return requestItinerary(client, systemPrompt, repairPrompt);
 }
@@ -583,14 +940,21 @@ and write every description with concrete, premium detail. Return JSON only.`;
 export async function generateTrip(params: GenerateTripParams): Promise<GeneratedTripPlan> {
   try {
     const client = getGroqClient();
-    const knowledge = resolveDestination(params.destination);
+    const normalized = normalizeTripInputs(params);
+    const knowledge = resolveDestination(normalized.city);
+    const filteredPlaces = filterPlaces(normalized.city, normalized.budgetTier, normalized.moods);
+    const scoredPlaces = scorePlaces(filteredPlaces, normalized);
+    const dayCandidates = buildDayCandidates(scoredPlaces, normalized);
+    const allowedPlaces = getAllowedPlacesFromDays(dayCandidates);
     const context: ItineraryValidationContext = {
       language: params.language,
       knowledge,
-      durationDays: params.durationDays,
+      durationDays: normalized.durationDays,
+      normalized,
+      allowedPlaces,
     };
 
-    const systemPrompt = buildSystemPrompt(params);
+    const systemPrompt = buildSystemPrompt(params, dayCandidates);
     const userPrompt = buildUserPrompt(params);
 
     let plan = await requestItinerary(client, systemPrompt, userPrompt);
@@ -599,7 +963,7 @@ export async function generateTrip(params: GenerateTripParams): Promise<Generate
     if (!result.valid) {
       console.warn("[Groq] itinerary validation failed, attempting repair", result.errors);
       try {
-        const repaired = await repairGeneratedItineraryIfNeeded(client, params, result.errors);
+        const repaired = await repairGeneratedItineraryIfNeeded(client, params, result.errors, dayCandidates);
         const repairedResult = validateGeneratedItinerary(repaired, context);
         if (repairedResult.valid) {
           plan = repaired;

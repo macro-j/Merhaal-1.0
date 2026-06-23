@@ -1,6 +1,7 @@
 import AppShell from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -120,7 +121,9 @@ export default function PlanTrip() {
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [days, setDays] = useState(1);
+  const [totalBudgetSAR, setTotalBudgetSAR] = useState(3000);
   const [budgetTier, setBudgetTier] = useState<ArabicBudgetTier>("متوسطة");
+  const [mealsPerDay, setMealsPerDay] = useState<2 | 3>(2);
   const [interests, setInterests] = useState<TripMood[]>([]);
   const [msgIndex, setMsgIndex] = useState(0);
   const [showLoading, setShowLoading] = useState(false);
@@ -243,6 +246,9 @@ export default function PlanTrip() {
         destination: destinationName,
         durationDays: days,
         budgetTier,
+        totalBudgetSAR,
+        accommodationType: budgetTier,
+        mealsPerDay,
         interests,
         language,
         startDate: toISODateString(startDate) || undefined,
@@ -253,6 +259,8 @@ export default function PlanTrip() {
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
         budgetTier,
+        totalBudgetSAR,
+        mealsPerDay,
         interests,
         startDate: toISODateString(startDate) || undefined,
         dayCount: days,
@@ -487,7 +495,59 @@ export default function PlanTrip() {
             : "Pick the level that matches your taste and budget"}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-5">
+        <div className="space-y-2">
+          <Label htmlFor="totalBudgetSAR">
+            {language === "ar" ? "الميزانية الإجمالية للرحلة (ريال)" : "Total trip budget (SAR)"}
+          </Label>
+          <Input
+            id="totalBudgetSAR"
+            type="number"
+            min="300"
+            step="100"
+            value={totalBudgetSAR}
+            onChange={(event) => setTotalBudgetSAR(Math.max(300, Number(event.target.value) || 300))}
+            data-testid="input-total-budget-sar"
+            className="h-12 rounded-xl text-base"
+          />
+          <p className="text-xs text-muted-foreground">
+            {language === "ar"
+              ? "تُستخدم كإشارة واقعية لتوزيع جودة التجارب على كامل مدة الرحلة."
+              : "Used as a realistic quality signal across the full trip duration."}
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>{language === "ar" ? "عدد الوجبات يومياً" : "Meals per day"}</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {([2, 3] as const).map((count) => {
+              const isActive = mealsPerDay === count;
+              return (
+                <button
+                  key={count}
+                  type="button"
+                  onClick={() => setMealsPerDay(count)}
+                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-all ${
+                    isActive
+                      ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
+                      : "border-border hover:border-primary/40 hover:bg-muted/40"
+                  }`}
+                  data-testid={`button-meals-${count}`}
+                >
+                  {count === 2
+                    ? language === "ar"
+                      ? "وجبتان"
+                      : "2 meals"
+                    : language === "ar"
+                      ? "3 وجبات"
+                      : "3 meals"}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-3">
         {BUDGET_TIER_CARDS.map((tier) => {
           const isActive = budgetTier === tier.value;
           const Icon = tier.icon;
@@ -528,6 +588,7 @@ export default function PlanTrip() {
             </button>
           );
         })}
+        </div>
       </CardContent>
     </Card>
   );
@@ -645,6 +706,37 @@ export default function PlanTrip() {
                       ? budgetCard.titleAr
                       : budgetCard.titleEn
                     : budgetTier}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 py-2 border-b border-border">
+              <Coins className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {language === "ar" ? "الميزانية الإجمالية" : "Total Budget"}
+                </p>
+                <p className="font-medium">
+                  {totalBudgetSAR.toLocaleString(language === "ar" ? "ar-SA" : "en-US")}{" "}
+                  {language === "ar" ? "ريال" : "SAR"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 py-2 border-b border-border">
+              <Scale className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              <div>
+                <p className="text-xs text-muted-foreground">
+                  {language === "ar" ? "الوجبات يومياً" : "Meals Per Day"}
+                </p>
+                <p className="font-medium">
+                  {mealsPerDay === 2
+                    ? language === "ar"
+                      ? "وجبتان"
+                      : "2 meals"
+                    : language === "ar"
+                      ? "3 وجبات"
+                      : "3 meals"}
                 </p>
               </div>
             </div>

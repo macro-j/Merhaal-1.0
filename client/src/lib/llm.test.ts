@@ -45,7 +45,7 @@ function validRiyadhPlan(): GeneratedTripPlan {
             endTime: "13:30",
             title: "غداء في مطل البجيري",
             description:
-              "تناول غداءً راقياً في Bujairi Terrace, Diriyah بإطلالة على حي الطريف ومجموعة مطاعم عالمية مميزة.",
+              "تناول غداءً راقياً في Bujairi Terrace, Diriyah مع حجز مسبق وإطلالة على حي الطريف ومجموعة مطاعم عالمية مميزة.",
             locationName: "Bujairi Terrace, Diriyah",
             bookingSearchQuery: "Bujairi Terrace restaurants",
           },
@@ -65,7 +65,7 @@ function validRiyadhPlan(): GeneratedTripPlan {
             endTime: "21:00",
             title: "عشاء فاخر في مطعم سهيل",
             description:
-              "اختتم اليوم بعشاء فاخر في Suhail Restaurant, Riyadh بأجواء راقية وإطلالة مميزة تناسب الميزانية العالية.",
+              "اختتم اليوم بعشاء فاخر في Suhail Restaurant, Riyadh مع حجز مسبق يضمن تجربة راقية وإطلالة مميزة تناسب الميزانية العالية.",
             locationName: "Suhail Restaurant, Riyadh",
             bookingSearchQuery: "Suhail Riyadh reservation",
           },
@@ -188,6 +188,7 @@ describe("buildSystemPrompt", () => {
 
   it("uses the strict fallback when the destination is unknown", () => {
     const prompt = buildSystemPrompt({ ...baseParams, destination: "London" });
-    expect(prompt).toContain("NOT in the curated knowledge base");
+    expect(prompt).toContain("<allowed_candidate_places>");
+    expect(prompt).toContain("Do not invent any location");
   });
 });

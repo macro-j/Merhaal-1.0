@@ -94,10 +94,10 @@ function ActivityTimelineItem({
   destination: string;
   isLast: boolean;
 }) {
-  const mapsResult = buildMapsUrl({
-    name: activity.locationName || activity.title,
-    destinationName: destination,
-  });
+  const mapsQuery = activity.locationName || activity.title;
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    mapsQuery
+  )}`;
 
   const bookingUrl = activity.bookingSearchQuery
     ? `https://www.google.com/search?q=${encodeURIComponent(activity.bookingSearchQuery)}`
@@ -144,16 +144,16 @@ function ActivityTimelineItem({
         )}
 
         <div className="flex flex-wrap gap-2 mt-4">
-          <Button variant="outline" size="sm" className="h-9 gap-1.5" asChild>
-            <a href={mapsResult.url} target="_blank" rel="noopener noreferrer">
+          <Button size="sm" className="h-9 gap-1.5 print:hidden" asChild>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
               <MapPin className="w-3.5 h-3.5" />
-              فتح في الخرائط
-              <ExternalLink className="w-3 h-3 opacity-60" />
+              فتح في خرائط Google
+              <ExternalLink className="w-3 h-3 opacity-70" />
             </a>
           </Button>
 
           {bookingUrl && (
-            <Button variant="secondary" size="sm" className="h-9 gap-1.5" asChild>
+            <Button variant="outline" size="sm" className="h-9 gap-1.5 print:hidden" asChild>
               <a href={bookingUrl} target="_blank" rel="noopener noreferrer">
                 <Search className="w-3.5 h-3.5" />
                 ابحث عن الحجز

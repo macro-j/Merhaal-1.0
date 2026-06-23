@@ -57,7 +57,8 @@ export interface GenerateTripParams {
 const MODEL = "llama-3.3-70b-versatile";
 const MIN_DESCRIPTION_LENGTH = 40;
 const MIN_LOCATION_LENGTH = 4;
-const MIN_ACTIVITIES_PER_DAY = 3;
+const MIN_ACTIVITIES_PER_DAY = 4;
+const MAX_GAP_MINUTES = 180;
 const KNOWLEDGE_COVERAGE_THRESHOLD = 0.6;
 const VALID_TIMES: TripActivityTime[] = ["الصباح", "الظهر", "المساء"];
 // Foreign scripts (Chinese/CJK and Cyrillic) that must never appear in generated
@@ -254,9 +255,11 @@ Each day should focus on one area or nearby areas. Never create unrealistic rout
 5b. REALISTIC CLOCK TIMES (startTime / endTime):
 Every activity MUST include realistic 24-hour "startTime" and "endTime" (e.g. "09:00", "12:00").
 - Times must be chronological within a day and must NOT overlap.
-- Leave realistic travel/transition gaps between locations (about 20-45 minutes depending on distance).
 - Budget realistic durations: a museum or heritage site ~1.5-2.5h, a coffee stop ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, a major attraction or theme zone ~2-3h.
 - Set "time" to the block that matches startTime: before 12:00 -> "الصباح"; 12:00-16:59 -> "الظهر"; 17:00 and later -> "المساء".
+
+5c. NO DEAD TIME (CRITICAL):
+The gap between the END of one activity and the START of the next on the same day MUST NOT exceed 3 hours (180 minutes). Leave only realistic travel/transition gaps (~20-45 minutes). For example: if an activity ends at 11:30, the next MUST start by 14:30 at the latest. Never leave large empty stretches in the day — fill them with a meal, a coffee stop, or a nearby experience from the list.
 
 6. INTEREST MATCHING:
 culture & heritage -> heritage districts, museums, old towns, historic villages.
@@ -265,8 +268,8 @@ family & kids -> safe accessible attractions, aquariums, parks, waterfronts.
 food & restaurants -> specific named restaurants and dining districts (never generic).
 adventure & sports -> mountains, trails, viewpoints, cable cars, outdoor experiences.
 
-7. ACTIVITY COUNT & PACING:
-Aim for 3-5 well-spaced, meaningful experiences per day, including meals and coffee stops. Never return fewer than 3 activities for any day. Do not pad with filler — every stop should earn its place.
+7. ACTIVITY COUNT & PACING (CRITICAL):
+Every single day MUST contain AT LEAST 4 activities (4-5 is ideal), including meals and coffee stops. Never return fewer than 4 activities for any day. Each stop should be meaningful and well-spaced — no filler, but also no lazy short days.
 
 7b. ASYMMETRIC PACING (be organic, not robotic):
 Do NOT use a rigid identical daily template. Let the rhythm vary naturally across days. For example: make one day a late, relaxed start that ends near midnight at a trendy cafe (e.g. Ash Trees Cafe); make another day start early for heritage, followed by a heavy lunch, then a calm evening. Vary start times, intensity, and mood so the trip feels like a real human-planned journey.
@@ -319,7 +322,7 @@ Schema:
     }
   ]
 }
-Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". "startTime"/"endTime" are 24-hour "HH:MM" strings. Include AT LEAST 3 activities per day (3-5 is ideal); never fewer than 3. bookingSearchQuery is a clean search string for booking/affiliate links.`;
+Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". "startTime"/"endTime" are 24-hour "HH:MM" strings, chronological, with no gap over 3 hours between consecutive activities. Include AT LEAST 4 activities per day (4-5 is ideal); never fewer than 4. bookingSearchQuery is a clean search string for booking/affiliate links.`;
 }
 
 function buildUserPrompt(params: GenerateTripParams): string {
@@ -343,6 +346,19 @@ const ARABIC_REGEX = /[\u0600-\u06FF]/;
 
 function hasArabic(text: string): boolean {
   return ARABIC_REGEX.test(text);
+}
+
+/**
+ * Parse an "HH:MM" 24-hour string into minutes-since-midnight, or null if invalid.
+ */
+function parseTimeToMinutes(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
 }
 
 /**
@@ -390,6 +406,7 @@ export function validateGeneratedItinerary(
     }
 
     const areasInDay = new Set<string>();
+    const timeSlots: Array<{ start: number; end: number; label: string }> = [];
 
     day.activities.forEach((activity, actIdx) => {
       totalActivities += 1;
@@ -402,6 +419,21 @@ export function validateGeneratedItinerary(
 
       if (!VALID_TIMES.includes(activity.time)) {
         errors.push(`${where}: invalid 'time' value "${String(activity.time)}".`);
+      }
+
+      const startMinutes = parseTimeToMinutes(activity.startTime);
+      const endMinutes = parseTimeToMinutes(activity.endTime);
+      if (startMinutes === null) {
+        errors.push(`${where}: missing or invalid 'startTime' (expected "HH:MM").`);
+      }
+      if (endMinutes === null) {
+        errors.push(`${where}: missing or invalid 'endTime' (expected "HH:MM").`);
+      }
+      if (startMinutes !== null && endMinutes !== null) {
+        if (endMinutes <= startMinutes) {
+          errors.push(`${where}: 'endTime' must be after 'startTime'.`);
+        }
+        timeSlots.push({ start: startMinutes, end: endMinutes, label: where });
       }
 
       if (!activity.title || !activity.title.trim()) {
@@ -459,6 +491,19 @@ export function validateGeneratedItinerary(
         }
       }
     });
+
+    // No dead time: gaps between consecutive activities must not exceed 3 hours.
+    const ordered = [...timeSlots].sort((a, b) => a.start - b.start);
+    for (let i = 1; i < ordered.length; i += 1) {
+      const gap = ordered[i].start - ordered[i - 1].end;
+      if (gap > MAX_GAP_MINUTES) {
+        errors.push(
+          `${dayLabel}: dead time of ${Math.round(
+            gap / 60
+          )}h between activities (max allowed 3h). Fill the gap with a meal, coffee, or nearby stop.`
+        );
+      }
+    }
 
     // Geographic sanity: when we could map known places to >=2 distinct areas in a
     // single day, flag it as a likely unrealistic route.

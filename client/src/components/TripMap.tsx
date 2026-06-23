@@ -122,12 +122,20 @@ export default function TripMap({ destination, activities = [], className }: Tri
         {points.map((point, index) => (
           <Marker key={`${point.lat}-${point.lng}-${index}`} position={[point.lat, point.lng]}>
             <Popup>
-              <div className="space-y-0.5 text-right" dir="rtl">
+              <div className="space-y-1.5 text-right" dir="rtl">
                 {point.time && (
                   <p className="text-xs font-medium text-primary">{point.time}</p>
                 )}
                 <p className="text-sm font-semibold">{point.title}</p>
                 <p className="text-xs text-muted-foreground">{point.locationName}</p>
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground no-underline"
+                >
+                  📍 افتح في Google Maps
+                </a>
               </div>
             </Popup>
           </Marker>

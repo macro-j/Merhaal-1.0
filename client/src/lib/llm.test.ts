@@ -41,8 +41,18 @@ function validRiyadhPlan(): GeneratedTripPlan {
           },
           {
             time: "الظهر",
-            startTime: "12:30",
-            endTime: "14:30",
+            startTime: "12:00",
+            endTime: "13:30",
+            title: "غداء في مطل البجيري",
+            description:
+              "تناول غداءً راقياً في Bujairi Terrace, Diriyah بإطلالة على حي الطريف ومجموعة مطاعم عالمية مميزة.",
+            locationName: "Bujairi Terrace, Diriyah",
+            bookingSearchQuery: "Bujairi Terrace restaurants",
+          },
+          {
+            time: "الظهر",
+            startTime: "14:00",
+            endTime: "16:00",
             title: "نزهة في وادي حنيفة",
             description:
               "استمتع بالمساحات الخضراء على ضفاف Wadi Hanifah, Riyadh القريبة من الدرعية مع استراحة هادئة وسط الطبيعة.",
@@ -53,11 +63,11 @@ function validRiyadhPlan(): GeneratedTripPlan {
             time: "المساء",
             startTime: "19:00",
             endTime: "21:00",
-            title: "عشاء في مطل البجيري",
+            title: "عشاء فاخر في مطعم سهيل",
             description:
-              "اختتم اليوم بعشاء راقٍ في Bujairi Terrace, Diriyah بإطلالة مسائية ساحرة على حي الطريف ومطاعم عالمية.",
-            locationName: "Bujairi Terrace, Diriyah",
-            bookingSearchQuery: "Bujairi Terrace restaurants",
+              "اختتم اليوم بعشاء فاخر في Suhail Restaurant, Riyadh بأجواء راقية وإطلالة مميزة تناسب الميزانية العالية.",
+            locationName: "Suhail Restaurant, Riyadh",
+            bookingSearchQuery: "Suhail Riyadh reservation",
           },
         ],
       },
@@ -76,6 +86,8 @@ describe("validateGeneratedItinerary", () => {
     const plan = validRiyadhPlan();
     plan.days[0].activities[1] = {
       time: "الظهر",
+      startTime: "12:00",
+      endTime: "13:30",
       title: "غداء في مطعم محلي",
       description:
         "تناول الغداء في مطعم محلي شهير بالقرب من الموقع للاستمتاع بأجواء بسيطة وممتعة طوال الوقت.",
@@ -103,12 +115,22 @@ describe("validateGeneratedItinerary", () => {
     expect(result.errors.some((e) => e.toLowerCase().includes("repeated location"))).toBe(true);
   });
 
-  it("rejects days with fewer than 3 activities even when 2 meals are selected", () => {
+  it("rejects days with fewer than 4 activities (no lazy short days)", () => {
     const plan = validRiyadhPlan();
-    plan.days[0].activities = plan.days[0].activities.slice(0, 2);
+    plan.days[0].activities = plan.days[0].activities.slice(0, 3);
     const result = validateGeneratedItinerary(plan, riyadhContext);
     expect(result.valid).toBe(false);
-    expect(result.errors.some((e) => e.includes("at least 3"))).toBe(true);
+    expect(result.errors.some((e) => e.includes("at least 4"))).toBe(true);
+  });
+
+  it("rejects dead time gaps longer than 3 hours between activities", () => {
+    const plan = validRiyadhPlan();
+    // Push the dinner far later to create an 8.5h gap after the 16:00 activity.
+    plan.days[0].activities[3].startTime = "23:00";
+    plan.days[0].activities[3].endTime = "23:59";
+    const result = validateGeneratedItinerary(plan, riyadhContext);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.toLowerCase().includes("dead time"))).toBe(true);
   });
 
   it("rejects hallucinated Chinese characters in text fields", () => {

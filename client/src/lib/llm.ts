@@ -48,8 +48,11 @@ export interface GenerateTripParams {
 const MODEL = "llama-3.3-70b-versatile";
 const MIN_DESCRIPTION_LENGTH = 40;
 const MIN_LOCATION_LENGTH = 4;
+const MIN_ACTIVITIES_PER_DAY = 3;
 const KNOWLEDGE_COVERAGE_THRESHOLD = 0.6;
 const VALID_TIMES: TripActivityTime[] = ["الصباح", "الظهر", "المساء"];
+// CJK / Chinese characters that must never appear in generated Arabic/English text.
+const CJK_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf]/;
 
 function getGroqApiKey(): string {
   const apiKey = import.meta.env.VITE_GROQ_API_KEY;
@@ -246,22 +249,36 @@ family & kids -> safe accessible attractions, aquariums, parks, waterfronts.
 food & restaurants -> specific named restaurants and dining districts (never generic).
 adventure & sports -> mountains, trails, viewpoints, cable cars, outdoor experiences.
 
-7. MEALS LOGIC:
-If meals per day is 2: include two meal moments (usually lunch + dinner).
-If meals per day is 3: include breakfast, lunch, and dinner.
-Every meal must be a real specific restaurant or dining district.
+7. ACTIVITY COUNT (CRITICAL):
+Every single day MUST contain a MINIMUM of 3 distinct time blocks/activities (e.g., Morning, Afternoon, Evening). Aim for 3-4 activities per day. Never return a day with fewer than 3 activities.
 
-8. OUTPUT LANGUAGE:
-Write all title and description text in ${languageName}.
+8. MEALS LOGIC (CRITICAL):
+The mealsPerDay input (${params.mealsPerDay}) dictates ONLY how many dining activities to include. It DOES NOT reduce the total number of activities.
+- If meals per day is 2: include exactly two dining moments (usually lunch + dinner), but the day must STILL have at least 3 total activities (e.g., 1 heritage/outdoor activity + 1 dining + 1 entertainment/dining).
+- If meals per day is 3: include breakfast, lunch, and dinner, plus non-dining activities so the day stays rich (4+ activities is ideal).
+Every meal must be a real, specific, named restaurant or dining district (never generic).
+
+9. OUTPUT LANGUAGE & HALLUCINATION STRICTNESS (CRITICAL):
+Output language: ${languageName}.
+${
+    params.language === "ar"
+      ? `If Arabic: Use polished, 100% pure natural Arabic.`
+      : `If English: Use clear, premium travel English.`
+  }
+STRICT NEGATIVE CONSTRAINT: You MUST NOT hallucinate, output, or mix in Chinese characters (e.g., "开始"), stray English words (unless it is a specific brand/location name like "VIA Riyadh" or "Bujairi Terrace"), or any other language in the title or description fields. The output MUST be strictly in the requested language.
 For locationName, always use a precise, copy-paste-able Google Maps name. When writing in Arabic you may append the English map name, e.g. "مطل البجيري - Bujairi Terrace, Diriyah".
 
-9. DESCRIPTION QUALITY:
-Every description must be specific and useful, explaining why the place is worth visiting, why it fits the chosen interest, why it fits the time of day, and why it fits the budget level. Avoid weak generic descriptions.
+10. DESCRIPTION QUALITY (No generic filler):
+Every activity description must explain exactly WHY the user is going there: why the place is worth visiting, why it fits the chosen interest, why it fits the time of day, and why it fits the budget level. Write naturally; do NOT start descriptions with poorly translated generic verbs or foreign words. ${
+    params.language === "ar"
+      ? `Good example: "استمتع بتجربة تسوق فاخرة في ڤيا رياض..." — Bad example: "开始 يومك...".`
+      : `Good example: "Enjoy a refined dining experience at Myazu Riyadh..." — never inject non-English filler.`
+  }
 
-10. NO REPETITION:
+11. NO REPETITION:
 Do not repeat the same attraction or restaurant across days unless the duration forces it.
 
-11. JSON ONLY:
+12. JSON ONLY:
 Return ONLY valid JSON. No markdown, no commentary outside the JSON.
 Schema:
 {
@@ -277,7 +294,7 @@ Schema:
     }
   ]
 }
-Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". Include 2-4 activities per day. bookingSearchQuery is a clean search string for booking/affiliate links.`;
+Rules: "time" must be exactly one of "الصباح", "الظهر", "المساء". Include AT LEAST 3 activities per day (3-4 is ideal); never fewer than 3. bookingSearchQuery is a clean search string for booking/affiliate links.`;
 }
 
 function buildUserPrompt(params: GenerateTripParams): string {
@@ -341,6 +358,12 @@ export function validateGeneratedItinerary(
       return;
     }
 
+    if (day.activities.length < MIN_ACTIVITIES_PER_DAY) {
+      errors.push(
+        `${dayLabel}: generated only ${day.activities.length} activities. You must generate at least ${MIN_ACTIVITIES_PER_DAY} distinct activities per day.`
+      );
+    }
+
     const areasInDay = new Set<string>();
 
     day.activities.forEach((activity, actIdx) => {
@@ -376,6 +399,12 @@ export function validateGeneratedItinerary(
       const forbidden = findForbiddenPhrases(combined);
       if (forbidden.length) {
         errors.push(`${where}: forbidden generic phrase(s): ${forbidden.join(", ")}.`);
+      }
+
+      if (CJK_REGEX.test(activity.title || "") || CJK_REGEX.test(description)) {
+        errors.push(
+          `${where}: hallucinated foreign (Chinese) characters detected. Use ONLY the requested language.`
+        );
       }
 
       if (context.language === "ar" && description && !hasArabic(description)) {

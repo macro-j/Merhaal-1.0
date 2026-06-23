@@ -91,6 +91,23 @@ describe("validateGeneratedItinerary", () => {
     expect(result.errors.some((e) => e.toLowerCase().includes("repeated location"))).toBe(true);
   });
 
+  it("rejects days with fewer than 3 activities even when 2 meals are selected", () => {
+    const plan = validRiyadhPlan();
+    plan.days[0].activities = plan.days[0].activities.slice(0, 2);
+    const result = validateGeneratedItinerary(plan, riyadhContext);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes("at least 3"))).toBe(true);
+  });
+
+  it("rejects hallucinated Chinese characters in text fields", () => {
+    const plan = validRiyadhPlan();
+    plan.days[0].activities[0].description =
+      "开始 يومك في At-Turaif World Heritage Site, Diriyah للتجول بين الأزقة الطينية التاريخية.";
+    const result = validateGeneratedItinerary(plan, riyadhContext);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.toLowerCase().includes("chinese"))).toBe(true);
+  });
+
   it("rejects descriptions that are too short", () => {
     const plan = validRiyadhPlan();
     plan.days[0].activities[0].description = "قصير";

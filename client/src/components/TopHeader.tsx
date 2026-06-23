@@ -2,6 +2,7 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import logoUrl from "@/assets/logo.jpg";
 
 export function TopHeader() {
   const { theme, toggleTheme } = useTheme();
@@ -14,15 +15,7 @@ export function TopHeader() {
     >
       {/* Logo on the left */}
       <div className="flex items-center">
-        <img
-          src="/logo.jpg"
-          alt="Merhaal"
-          className="h-8 w-auto"
-          onError={(e) => {
-            const img = e.target as HTMLImageElement;
-            img.src = '/logo.svg';
-          }}
-        />
+        <img src={logoUrl} alt="مرحال" className="h-8 w-auto" />
       </div>
 
       {/* Controls on the right */}

@@ -11,6 +11,7 @@ import {
 import { useTheme } from "@/contexts/ThemeContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { cn } from "@/lib/utils";
+import logoUrl from "@/assets/logo.jpg";
 
 interface NavLink {
   href: string;
@@ -66,7 +67,7 @@ export function Navbar() {
             aria-label={language === "ar" ? "الرئيسية" : "Home"}
             className="flex items-center rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <img src="/logo.jpg" alt="مرحال" className="h-8 md:h-9 w-auto" />
+            <img src={logoUrl} alt="مرحال" className="h-8 md:h-9 w-auto" />
           </Link>
 
           <div className="hidden md:flex items-center gap-1">

@@ -182,24 +182,21 @@ export default function PlanTrip() {
       language === "ar"
         ? `إقامة ${accommodationType}، ${mealsPerDay} وجبات يوميًا`
         : `${accommodationType} stay, ${mealsPerDay} meals/day`;
-    const interestsLabel =
-      interests.length > 0
-        ? interests.join(language === "ar" ? "، " : ", ")
-        : language === "ar"
-          ? "عام"
-          : "general";
 
     setIsGenerating(true);
     loadingStartRef.current = Date.now();
 
     try {
-      const plan = await generateTrip(
-        destinationName,
-        days,
-        budget,
-        companions,
-        interestsLabel
-      );
+      const plan = await generateTrip({
+        destination: destinationName,
+        durationDays: days,
+        totalBudgetSar: budget,
+        accommodationType,
+        mealsPerDay,
+        interests,
+        language,
+        startDate: toISODateString(startDate) || undefined,
+      });
 
       const savedTrip = {
         ...plan,

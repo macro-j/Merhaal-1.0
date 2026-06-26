@@ -108,7 +108,7 @@ export interface DayCandidates {
   المساء: DestinationPlace[];
 }
 
-const MODEL = "llama-3.3-70b-versatile";
+const MODEL = "llama-3.1-8b-instant";
 const MIN_DESCRIPTION_LENGTH = 40;
 const MIN_LOCATION_LENGTH = 4;
 const MIN_ACTIVITIES_PER_DAY = 4;
@@ -243,6 +243,27 @@ function logLlmError(context: string, error: unknown): void {
       message: getErrorMessage(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
+  }
+}
+
+function isRateLimitError(error: unknown): boolean {
+  const message = getErrorMessage(error).toLowerCase();
+  const status = error && typeof error === "object" && "status" in error ? (error as { status?: unknown }).status : undefined;
+  return status === 429 || message.includes("429") || message.includes("rate limit");
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withRateLimitRetry<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!isRateLimitError(error)) throw error;
+    console.warn("[Groq] rate limit hit, retrying once in 6s");
+    await wait(6000);
+    return operation();
   }
 }
 
@@ -957,15 +978,17 @@ async function requestItinerary(
   systemPrompt: string,
   userPrompt: string
 ): Promise<GeneratedTripPlan> {
-  const completion = await client.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
-    ],
-    temperature: 0.15,
-    response_format: { type: "json_object" },
-  });
+  const completion = await withRateLimitRetry(() =>
+    client.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.15,
+      response_format: { type: "json_object" },
+    })
+  );
 
   const rawText = completion.choices[0]?.message?.content;
   if (!rawText) {

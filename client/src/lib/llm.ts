@@ -114,6 +114,9 @@ const MIN_LOCATION_LENGTH = 4;
 const MIN_ACTIVITIES_PER_DAY = 4;
 const MAX_GAP_MINUTES = 180;
 const KNOWLEDGE_COVERAGE_THRESHOLD = 0.6;
+const MAX_PROMPT_PLACES = 35;
+const MAX_BLOCK_CANDIDATES = 3;
+const MAX_DAILY_RESTAURANTS = 5;
 const VALID_TIMES: TripActivityTime[] = ["الصباح", "الظهر", "المساء"];
 // Foreign scripts (Chinese/CJK and Cyrillic) that must never appear in generated
 // Arabic/English text. Arabic + Latin are the only allowed scripts.
@@ -400,16 +403,42 @@ export function buildDayCandidates(
 ): DayCandidates[] {
   const unused = [...scoredPlaces.map((p) => p.place)];
   const days: DayCandidates[] = [];
+  const injectedPlaceIds = new Set<string>();
+  const maxPlacesPerDay = Math.max(
+    MIN_ACTIVITIES_PER_DAY,
+    Math.floor(MAX_PROMPT_PLACES / Math.max(1, context.durationDays))
+  );
+
+  const takeBlockCandidates = (
+    places: DestinationPlace[],
+    limit: number,
+    remainingGlobalSlots: number
+  ): DestinationPlace[] => {
+    const selected: DestinationPlace[] = [];
+    for (const place of places) {
+      if (selected.length >= limit || selected.length >= remainingGlobalSlots) break;
+      if (injectedPlaceIds.has(place.id)) continue;
+      selected.push(place);
+      injectedPlaceIds.add(place.id);
+    }
+    return selected;
+  };
 
   for (let day = 1; day <= context.durationDays; day += 1) {
-    const morning = scorePlaces(unused, { ...context, timeBlock: "morning" })
+    const remainingGlobalSlots = MAX_PROMPT_PLACES - injectedPlaceIds.size;
+    if (remainingGlobalSlots <= 0) {
+      days.push({ dayNumber: day, الصباح: [], الظهر: [], المساء: [] });
+      continue;
+    }
+
+    const dailyLimit = Math.min(maxPlacesPerDay, remainingGlobalSlots);
+    const morningPool = scorePlaces(unused, { ...context, timeBlock: "morning" })
       .filter(({ place }) =>
         ["heritage", "nature", "cafe", "modern"].includes(place.category)
       )
-      .slice(0, 6)
       .map(({ place }) => place);
     const afternoonMeal: MealSlot = context.mealsPerDay === 3 ? "غداء" : "غداء";
-    const afternoon = scorePlaces(unused, {
+    const afternoonPool = scorePlaces(unused, {
       ...context,
       timeBlock: "afternoon",
       mealSlot: afternoonMeal,
@@ -417,18 +446,56 @@ export function buildDayCandidates(
       .filter(({ place }) =>
         ["dining", "cafe", "heritage", "shopping", "family", "modern"].includes(place.category)
       )
-      .slice(0, 8)
       .map(({ place }) => place);
-    const evening = scorePlaces(unused, { ...context, timeBlock: "evening", mealSlot: "عشاء" })
+    const eveningPool = scorePlaces(unused, { ...context, timeBlock: "evening", mealSlot: "عشاء" })
       .filter(({ place }) =>
         ["dining", "cafe", "luxury", "entertainment", "shopping", "nature", "modern"].includes(
           place.category
         )
       )
-      .slice(0, 8)
       .map(({ place }) => place);
 
-    const selected = uniquePlaces([...morning.slice(0, 1), ...afternoon.slice(0, 2), ...evening.slice(0, 2)]);
+    const morningLimit = Math.min(MAX_BLOCK_CANDIDATES, Math.max(1, dailyLimit - 4));
+    const afternoonLimit = Math.min(MAX_BLOCK_CANDIDATES, Math.max(1, dailyLimit - morningLimit - 2));
+    const eveningLimit = Math.min(MAX_BLOCK_CANDIDATES, Math.max(1, dailyLimit - morningLimit - afternoonLimit));
+
+    const morning = takeBlockCandidates(morningPool, morningLimit, MAX_PROMPT_PLACES - injectedPlaceIds.size);
+    const afternoon = takeBlockCandidates(
+      afternoonPool,
+      afternoonLimit,
+      MAX_PROMPT_PLACES - injectedPlaceIds.size
+    );
+    const evening = takeBlockCandidates(eveningPool, eveningLimit, MAX_PROMPT_PLACES - injectedPlaceIds.size);
+
+    const restaurants = uniquePlaces([...afternoon, ...evening]).filter(
+      (place) => place.category === "dining" || place.category === "cafe"
+    );
+    if (restaurants.length > MAX_DAILY_RESTAURANTS) {
+      const allowedRestaurantIds = new Set(restaurants.slice(0, MAX_DAILY_RESTAURANTS).map((place) => place.id));
+      for (const place of [...afternoon, ...evening]) {
+        if (
+          (place.category === "dining" || place.category === "cafe") &&
+          !allowedRestaurantIds.has(place.id)
+        ) {
+          injectedPlaceIds.delete(place.id);
+        }
+      }
+    }
+
+    const cappedAfternoon = afternoon.filter(
+      (place) =>
+        place.category !== "dining" &&
+        place.category !== "cafe" ||
+        restaurants.slice(0, MAX_DAILY_RESTAURANTS).some((restaurant) => restaurant.id === place.id)
+    );
+    const cappedEvening = evening.filter(
+      (place) =>
+        place.category !== "dining" &&
+        place.category !== "cafe" ||
+        restaurants.slice(0, MAX_DAILY_RESTAURANTS).some((restaurant) => restaurant.id === place.id)
+    );
+
+    const selected = uniquePlaces([...morning, ...cappedAfternoon, ...cappedEvening]);
     for (const place of selected) {
       const index = unused.findIndex((candidate) => candidate.id === place.id);
       if (index >= 0) unused.splice(index, 1);
@@ -437,29 +504,47 @@ export function buildDayCandidates(
     days.push({
       dayNumber: day,
       الصباح: morning,
-      الظهر: afternoon,
-      المساء: evening,
+      الظهر: cappedAfternoon,
+      المساء: cappedEvening,
     });
   }
 
   return days;
 }
 
-function formatCandidate(place: DestinationPlace): string {
-  return [
-    `id: ${place.id}`,
-    `name: ${place.name}`,
-    `arabicName: ${place.arabicName}`,
-    `mapSearchQuery: ${place.mapSearchQuery}`,
-    `area: ${place.area}`,
-    `category: ${place.category}`,
-    `recommendedTime: ${place.recommendedTime.join(", ")}`,
-    `mealSlot: ${place.mealSlot.join(", ")}`,
-    `placeRole: ${place.placeRole.join(", ")}`,
-    `bookingDifficulty: ${place.bookingDifficulty}`,
-    `weatherSensitivity: ${place.weatherSensitivity}`,
-    `notes: ${place.shortDescription} ${place.planningNotes}`,
-  ].join(" | ");
+function getCandidateDurationMinutes(place: DestinationPlace): number {
+  if (place.category === "cafe") return 90;
+  if (place.category === "dining") return 120;
+  if (place.category === "shopping" || place.category === "entertainment") return 180;
+  if (place.category === "nature" || place.category === "heritage") return 150;
+  return 120;
+}
+
+function getCandidateCostTier(place: DestinationPlace): ArabicBudgetTier {
+  if (place.budgetLevel.includes("luxury")) return "فاخرة";
+  if (place.budgetLevel.includes("midRange")) return "متوسطة";
+  return "اقتصادية";
+}
+
+function isBookingRequired(place: DestinationPlace): boolean {
+  return place.bookingDifficulty === "الحجز ضروري" || place.bookingDifficulty === "تذاكر مسبقة";
+}
+
+function getBriefDetails(place: DestinationPlace): string {
+  const details = place.shortDescription.replace(/\s+/g, " ").trim();
+  return details.length > 90 ? `${details.slice(0, 87)}...` : details;
+}
+
+function formatCandidate(place: DestinationPlace) {
+  return {
+    id: place.id,
+    name: place.mapSearchQuery || place.name,
+    type: place.category,
+    durationMinutes: getCandidateDurationMinutes(place),
+    costTier: getCandidateCostTier(place),
+    requiresBooking: isBookingRequired(place),
+    details: getBriefDetails(place),
+  };
 }
 
 function getAllowedPlacesFromDays(days: DayCandidates[]): DestinationPlace[] {
@@ -481,22 +566,14 @@ export function buildSystemPrompt(params: GenerateTripParams, dayCandidates?: Da
       scorePlaces(filterPlaces(normalized.city, normalized.budgetTier, normalized.moods), normalized),
       normalized
     );
-  const allowedPlaces = getAllowedPlacesFromDays(candidates);
-  const candidateBlock = candidates
-    .map(
-      (day) => `<day number="${day.dayNumber}">
-<morning>
-${day.الصباح.map(formatCandidate).join("\n")}
-</morning>
-<afternoon>
-${day.الظهر.map(formatCandidate).join("\n")}
-</afternoon>
-<evening>
-${day.المساء.map(formatCandidate).join("\n")}
-</evening>
-</day>`
-    )
-    .join("\n\n");
+  const candidatePayload = JSON.stringify(
+    candidates.map((day) => ({
+      d: day.dayNumber,
+      m: day.الصباح.map(formatCandidate),
+      a: day.الظهر.map(formatCandidate),
+      e: day.المساء.map(formatCandidate),
+    }))
+  );
   const budgetTier = normalized.budgetTier;
   const interestTags = normalizeInterests(params.interests);
   const languageName = params.language === "ar" ? "Arabic" : "English";
@@ -524,22 +601,15 @@ You are an elite, highly sought-after Saudi Travel Concierge. Your tone is premi
 </user_profile>
 
 <allowed_candidate_places>
-CRITICAL: These are the ONLY locations you may use. Do not use the full knowledge base. Do not invent any location. Every activity.locationName MUST exactly match one of the provided candidate "name", "arabicName", or "mapSearchQuery" values below.
-${candidateBlock}
+CRITICAL: These are the ONLY locations you may use. Do not use the full knowledge base. Do not invent any location. Every activity.locationName MUST exactly match one provided candidate.name. Candidate keys: d=day, m=morning, a=afternoon, e=evening.
+${candidatePayload}
 </allowed_candidate_places>
-
-<allowed_location_values>
-${allowedPlaces
-  .flatMap((place) => [place.name, place.arabicName, place.mapSearchQuery])
-  .map((name) => `- ${name}`)
-  .join("\n")}
-</allowed_location_values>
 
 <strict_time_and_logic_laws>
 CRITICAL: You must obey the physics of time and the reality of Saudi tourism.
-1. MORNINGS (08:00 - 12:00) -> time = "الصباح": select from that day's <morning> candidates only. Prefer heritage, nature, scenic starts, iconic landmarks, or breakfast/brunch cafes. NEVER schedule entertainment zones or malls here.
-2. AFTERNOONS (12:00 - 17:00) -> time = "الظهر": select from that day's <afternoon> candidates only. Prefer indoor/shaded activities, premium lunches, museums, malls, or relaxed walks.
-3. EVENINGS/NIGHTS (17:00 - 23:59) -> time = "المساء": select from that day's <evening> candidates only. This is when you schedule trendy/lifestyle, entertainment, fine dining, waterfronts, viewpoints, and premium areas.
+1. MORNINGS (08:00 - 12:00) -> time = "الصباح": select from that day's "m" candidates only. Prefer heritage, nature, scenic starts, iconic landmarks, or breakfast/brunch cafes. NEVER schedule entertainment zones or malls here.
+2. AFTERNOONS (12:00 - 17:00) -> time = "الظهر": select from that day's "a" candidates only. Prefer indoor/shaded activities, premium lunches, museums, malls, or relaxed walks.
+3. EVENINGS/NIGHTS (17:00 - 23:59) -> time = "المساء": select from that day's "e" candidates only. This is when you schedule trendy/lifestyle, entertainment, fine dining, waterfronts, viewpoints, and premium areas.
 4. NO DEAD TIME: the gap between the END of one activity and the START of the next MUST NOT exceed 3 hours (180 min). Keep only realistic transitions (~20-45 min). If one ends at 11:30, the next must start by 14:30 at the latest.
 5. DENSITY: provide EXACTLY 4 to 5 activities per day — never fewer than 4 and never more than 5.
 6. CLOCK FIELDS: every activity MUST have 24-hour "startTime" and "endTime" ("HH:MM"), chronological and non-overlapping, with "time" matching the block above. Realistic durations: heritage/museum ~1.5-2.5h, coffee ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, major attraction ~2-3h.

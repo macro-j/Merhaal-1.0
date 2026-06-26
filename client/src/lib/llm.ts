@@ -268,11 +268,7 @@ async function withRateLimitRetry<T>(operation: () => Promise<T>): Promise<T> {
 }
 
 function stripMarkdownJson(raw: string): string {
-  let text = raw.trim();
-  if (text.startsWith("```")) {
-    text = text.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
-  }
-  return text.trim();
+  return raw.replace(/```json/gi, "").replace(/```/g, "").trim();
 }
 
 function toArabicBudgetTier(tier: string | undefined): ArabicBudgetTier {
@@ -720,31 +716,43 @@ function parseTimeToMinutes(value: unknown): number | null {
   return hours * 60 + minutes;
 }
 
+function normalizeLocationForMatch(value: string): string {
+  return normalizeText(value)
+    .replace(/\b(مطعم|مقهى|كافيه|كوفي|محمصه|محمصة|roasters|restaurant|cafe|coffee|house)\b/g, "")
+    .replace(/\s+/g, "");
+}
+
+function fuzzyLocationMatches(value: string, candidate: string): boolean {
+  const normalizedValue = normalizeLocationForMatch(value);
+  const normalizedCandidate = normalizeLocationForMatch(candidate);
+  if (!normalizedValue || !normalizedCandidate) return false;
+  return (
+    normalizedValue === normalizedCandidate ||
+    normalizedValue.includes(normalizedCandidate) ||
+    normalizedCandidate.includes(normalizedValue)
+  );
+}
+
 function isAllowedLocation(locationName: string, allowedPlaces: DestinationPlace[]): boolean {
-  const normalized = normalizeText(locationName);
   return allowedPlaces.some((place) =>
     [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
-      .map(normalizeText)
-      .some((candidate) => normalized === candidate || normalized.includes(candidate) || candidate.includes(normalized))
+      .some((candidate) => fuzzyLocationMatches(locationName, candidate))
   );
 }
 
 function isMealActivity(locationName: string, allowedPlaces: DestinationPlace[]): boolean {
   const place = allowedPlaces.find((candidate) =>
     [candidate.name, candidate.arabicName, candidate.englishName, candidate.mapSearchQuery]
-      .map(normalizeText)
-      .some((name) => normalizeText(locationName).includes(name) || name.includes(normalizeText(locationName)))
+      .some((name) => fuzzyLocationMatches(locationName, name))
   );
   return Boolean(place && !place.mealSlot.includes("لا ينطبق"));
 }
 
 function findAllowedPlace(locationName: string, allowedPlaces: DestinationPlace[]): DestinationPlace | null {
-  const normalized = normalizeText(locationName);
   return (
     allowedPlaces.find((place) =>
       [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
-        .map(normalizeText)
-        .some((name) => normalized === name || normalized.includes(name) || name.includes(normalized))
+        .some((name) => fuzzyLocationMatches(locationName, name))
     ) ?? null
   );
 }
@@ -1055,6 +1063,7 @@ export async function generateTrip(params: GenerateTripParams): Promise<Generate
 
     if (!result.valid) {
       console.warn("[Groq] itinerary validation failed, attempting repair", result.errors);
+      console.error("🚨 Itinerary Validation Failed:", result.errors);
       try {
         const repaired = await repairGeneratedItineraryIfNeeded(client, params, result.errors, dayCandidates);
         const repairedResult = validateGeneratedItinerary(repaired, context);
@@ -1063,9 +1072,11 @@ export async function generateTrip(params: GenerateTripParams): Promise<Generate
           result = repairedResult;
         } else {
           console.error("[Groq] repair still invalid", repairedResult.errors);
+          console.error("🚨 Itinerary Validation Failed:", repairedResult.errors);
           throw new Error("POOR_QUALITY");
         }
       } catch (repairError) {
+        console.error("🚨 Itinerary Validation Failed:", repairError);
         if (repairError instanceof Error && repairError.message === "POOR_QUALITY") {
           throw repairError;
         }

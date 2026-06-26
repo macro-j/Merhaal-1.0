@@ -108,7 +108,7 @@ export interface DayCandidates {
   المساء: DestinationPlace[];
 }
 
-const MODEL = "llama-3.1-8b-instant";
+const MODEL = "llama-3.3-70b-versatile";
 const MIN_DESCRIPTION_LENGTH = 40;
 const MIN_LOCATION_LENGTH = 4;
 const MIN_ACTIVITIES_PER_DAY = 4;
@@ -985,7 +985,7 @@ async function requestItinerary(
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.15,
+      temperature: 0.1,
       response_format: { type: "json_object" },
     })
   );

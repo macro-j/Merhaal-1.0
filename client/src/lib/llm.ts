@@ -657,6 +657,10 @@ Output language: ${languageName}. ${
 STRICT NEGATIVE CONSTRAINT: NEVER output or mix in Chinese characters (e.g. "开始"), Cyrillic, or stray words from other languages in "title" or "description" — except real brand/place names (e.g. "VIA Riyadh", "Bujairi Terrace"). "locationName" must be a precise, copy-paste-able Google Maps name; in Arabic you may append the English map name, e.g. "مطل البجيري - Bujairi Terrace, Diriyah".
 </language_laws>
 
+<rules>
+TITLE RULE: The "title" of the itinerary MUST dynamically reflect the user's selected budget tier ("${params.budgetTier}") and moods (${moodList}). DO NOT output "رحلة فاخرة" (Luxury trip) if the budget is "اقتصادية" (Economic) or "متوسطة" (Medium). DO NOT output "Luxury" in English when budgetTier is budget or mid-range. Match the title to the actual vibe — e.g. economic + heritage -> "رحلة تراثية اقتصادية في ${normalized.city}"; luxury + lifestyle -> "رحلة فاخرة في ${normalized.city}". The title must feel accurate, never aspirational beyond what the user selected.
+</rules>
+
 <output_requirements>
 Write each "description" beautifully and specifically — make the user FEEL the luxury and understand WHY this place, at this time, for this budget. Do NOT write flat lines like "Visit the museum"; instead, e.g. "انغمس في عبق التاريخ واستكشف جذور المملكة في...". Avoid generic phrases (مطعم محلي، سوق شعبي، منطقة ترفيهية، local restaurant, tourist attraction, hidden gem). Each description must be at least one rich sentence.
 Output ONLY valid JSON (no markdown, no commentary) matching this schema exactly:

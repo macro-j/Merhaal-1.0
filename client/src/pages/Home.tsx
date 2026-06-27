@@ -1,7 +1,7 @@
 import { useInView } from "@/hooks/useInView";
 import { Button } from "@/components/ui/button";
 import { CityDetailModal } from "@/components/CityDetailModal";
-import { Calendar, Settings, Sparkles, Globe, Users, Share2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Settings, Sparkles, Globe, Share2, ChevronLeft, ChevronRight, MapPin, LayoutGrid } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -123,24 +123,31 @@ export default function Home() {
   const features = [
     {
       icon: <Sparkles className="w-5 h-5" />,
-      title: 'تخطيط ذكي',
-      titleEn: 'Smart Planning',
-      description: 'جداول رحلات مخصصة لتفضيلاتك',
-      descriptionEn: 'Custom trip schedules for your preferences'
+      title: 'ذكاء اصطناعي متقدم',
+      titleEn: 'Advanced AI',
+      description: 'تخطيط ذكي يفهم تفضيلاتك بدقة',
+      descriptionEn: 'Smart planning that understands your preferences'
+    },
+    {
+      icon: <MapPin className="w-5 h-5" />,
+      title: 'أماكن منتقاة بعناية',
+      titleEn: 'Curated Places',
+      description: 'قاعدة بيانات دقيقة لأفضل الأماكن',
+      descriptionEn: 'A precise database of the best destinations'
+    },
+    {
+      icon: <LayoutGrid className="w-5 h-5" />,
+      title: 'تصميم تفاعلي',
+      titleEn: 'Interactive UI',
+      description: 'تجربة بصرية مذهلة وسلسة',
+      descriptionEn: 'A stunning, seamless visual experience'
     },
     {
       icon: <Settings className="w-5 h-5" />,
       title: 'تخصيص كامل',
-      titleEn: 'Full Control',
-      description: 'اختر الوجهات والميزانية والاهتمامات',
-      descriptionEn: 'Choose destinations, budget and interests'
-    },
-    {
-      icon: <Calendar className="w-5 h-5" />,
-      title: 'حجز مباشر',
-      titleEn: 'Direct Booking',
-      description: 'احجز الأنشطة والفنادق بسهولة',
-      descriptionEn: 'Book activities and hotels easily'
+      titleEn: 'Full Customization',
+      description: 'اختر الوجهة والميزانية ونمط رحلتك',
+      descriptionEn: 'Choose destination, budget, and trip style'
     },
     {
       icon: <Globe className="w-5 h-5" />,
@@ -150,18 +157,11 @@ export default function Home() {
       descriptionEn: 'Available in Arabic and English'
     },
     {
-      icon: <Users className="w-5 h-5" />,
-      title: 'مرشدون محترفون',
-      titleEn: 'Pro Guides',
-      description: 'مرشدون سياحيون معتمدون',
-      descriptionEn: 'Certified tour guides'
-    },
-    {
       icon: <Share2 className="w-5 h-5" />,
       title: 'مشاركة سهلة',
       titleEn: 'Easy Sharing',
-      description: 'شارك خططك أو صدرها PDF',
-      descriptionEn: 'Share plans or export as PDF'
+      description: 'شارك خطتك أو صدّرها PDF',
+      descriptionEn: 'Share your plan or export as PDF'
     }
   ];
 
@@ -372,7 +372,7 @@ export default function Home() {
               {t.featuresTitle}
             </h2>
             <p className="text-sm md:text-base text-muted-foreground max-w-md mx-auto">
-              {language === 'ar' ? 'كل ما تحتاجه في مكان واحد' : 'Smart tools for your perfect trip'}
+              {language === 'ar' ? 'مساعد سفر ذكي يصمم رحلتك بدقة' : 'An AI concierge that crafts your trip with precision'}
             </p>
           </div>
 

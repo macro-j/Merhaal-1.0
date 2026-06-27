@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
-import { Navbar } from "@/components/Navbar";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Packages() {
@@ -96,12 +95,7 @@ export default function Packages() {
   const t = content[language];
 
   return (
-    <div 
-      className={`min-h-screen bg-background ${isRTL ? 'rtl' : 'ltr'}`}
-      dir={isRTL ? 'rtl' : 'ltr'}
-    >
-      <Navbar />
-
+    <div dir={isRTL ? 'rtl' : 'ltr'}>
       <section 
         className="pt-24 pb-16 md:pt-32 md:pb-24"
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 6rem)" }}
@@ -168,21 +162,6 @@ export default function Packages() {
           </div>
         </div>
       </section>
-
-      <footer 
-        className="bg-muted/50 py-8"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 2rem)" }}
-      >
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            {language === 'ar' ? '© 2026 مرحال. جميع الحقوق محفوظة.' : '© 2026 Merhaal. All rights reserved.'}
-          </p>
-          <p className="text-[10px] text-muted-foreground/50 mt-1">
-            {language === 'ar' ? 'تم التطوير بواسطة' : 'Created by'}{' '}
-            <a href="https://www.linkedin.com/in/alamri-mh" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground/80">{language === 'ar' ? 'محمد' : 'Mohammed'}</a>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

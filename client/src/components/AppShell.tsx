@@ -1,4 +1,3 @@
-import { Navbar } from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ArrowLeft, ArrowRight } from "lucide-react";
@@ -9,26 +8,15 @@ interface AppShellProps {
   showBack?: boolean;
 }
 
-const SHELL_TOP_PADDING = "calc(env(safe-area-inset-top) + 4.5rem)";
-
 export default function AppShell({ children, title, showBack }: AppShellProps) {
   const { language, isRTL } = useLanguage();
   const BackArrow = isRTL ? ArrowRight : ArrowLeft;
 
   return (
-    <div
-      className="min-h-screen bg-background"
-      dir={isRTL ? "rtl" : "ltr"}
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      <Navbar />
-
-      <div
-        className="container mx-auto px-4 pb-8 max-w-5xl"
-        style={{ paddingTop: SHELL_TOP_PADDING }}
-      >
+    <div dir={isRTL ? "rtl" : "ltr"}>
+      <div className="container mx-auto max-w-5xl px-4 pb-8 pt-[calc(env(safe-area-inset-top)+4.5rem)] print:max-w-none print:px-0 print:pb-0 print:pt-4">
         {(title || showBack) && (
-          <header className="flex items-center gap-2 mb-6">
+          <header className="mb-6 flex items-center gap-2 print:hidden">
             {showBack && (
               <Button
                 variant="ghost"
@@ -41,14 +29,14 @@ export default function AppShell({ children, title, showBack }: AppShellProps) {
               </Button>
             )}
             {title && (
-              <h1 className="text-xl sm:text-2xl font-bold truncate" data-testid="text-page-title">
+              <h1 className="truncate text-xl font-bold sm:text-2xl" data-testid="text-page-title">
                 {title}
               </h1>
             )}
           </header>
         )}
 
-        <main>{children}</main>
+        <div>{children}</div>
       </div>
     </div>
   );

@@ -141,10 +141,10 @@ function ActivityTimelineItem({
     : null;
 
   return (
-    <div className="relative flex gap-4 pb-8 last:pb-0" data-testid={`activity-${activity.title}`}>
+    <div className="relative flex gap-4 pb-8 last:pb-0 print:break-inside-avoid print:pb-4" data-testid={`activity-${activity.title}`}>
       {!isLast && (
         <span
-          className="absolute top-12 bottom-0 w-px bg-gradient-to-b from-primary/30 via-border to-transparent"
+          className="absolute top-12 bottom-0 w-px bg-gradient-to-b from-primary/30 via-border to-transparent print:hidden"
           style={{ insetInlineStart: "1.125rem" }}
           aria-hidden
         />
@@ -152,7 +152,8 @@ function ActivityTimelineItem({
 
       <div
         className={cn(
-          "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/70 shadow-md shadow-black/5 backdrop-blur-md dark:border-white/10 dark:bg-white/10"
+          "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/70 shadow-md shadow-black/5 backdrop-blur-md dark:border-white/10 dark:bg-white/10",
+          "print:border-gray-200 print:bg-white print:shadow-none print:backdrop-blur-none"
         )}
       >
         <TimeIcon time={activity.time} />
@@ -160,23 +161,24 @@ function ActivityTimelineItem({
 
       <div
         className={cn(
-          "relative flex-1 min-w-0 overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-white/75 via-white/55 to-white/35 p-5 shadow-lg shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-transparent dark:shadow-black/20"
+          "relative flex-1 min-w-0 overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-white/75 via-white/55 to-white/35 p-5 shadow-lg shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-transparent dark:shadow-black/20",
+          "print:break-inside-avoid print:rounded-xl print:border-gray-200 print:bg-white print:from-white print:via-white print:to-white print:shadow-none print:text-black print:backdrop-blur-none dark:print:from-white dark:print:via-white dark:print:to-white"
         )}
       >
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b opacity-80",
+            "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b opacity-80 print:h-16 print:opacity-100",
             timeAccentClass(activity.time)
           )}
           aria-hidden
         />
 
-        <div className="relative">
+        <div className="relative print:text-black">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <Badge
               variant="outline"
               className={cn(
-                "text-[11px] font-semibold tracking-wide backdrop-blur-sm",
+                "text-[11px] font-semibold tracking-wide backdrop-blur-sm print:backdrop-blur-none",
                 timeBadgeClass(activity.time)
               )}
             >
@@ -185,7 +187,7 @@ function ActivityTimelineItem({
             {activity.startTime && activity.endTime && (
               <Badge
                 variant="secondary"
-                className="text-[11px] font-medium gap-1 border-white/20 bg-white/50 text-foreground/80 backdrop-blur-sm dark:bg-white/10"
+                className="text-[11px] font-medium gap-1 border-white/20 bg-white/50 text-foreground/80 backdrop-blur-sm dark:bg-white/10 print:border-gray-200 print:bg-gray-50 print:text-black print:backdrop-blur-none"
               >
                 <Clock className="w-3 h-3 opacity-70" />
                 {activity.startTime} – {activity.endTime}
@@ -193,20 +195,20 @@ function ActivityTimelineItem({
             )}
           </div>
 
-          <h4 className="text-[1.05rem] font-semibold leading-snug tracking-tight text-foreground">
+          <h4 className="text-[1.05rem] font-semibold leading-snug tracking-tight text-foreground print:text-black">
             {activity.title}
           </h4>
 
           {activity.description && (
-            <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground/90">
+            <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground/90 print:text-gray-700">
               {activity.description}
             </p>
           )}
 
           {activity.locationName && (
             <div className="mt-4 space-y-2.5">
-              <div className="flex items-start gap-2 text-sm font-medium text-foreground/90">
-                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <div className="flex items-start gap-2 text-sm font-medium text-foreground/90 print:text-black">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary print:text-gray-700" />
                 <span className="leading-snug">{activity.locationName}</span>
               </div>
 
@@ -215,7 +217,7 @@ function ActivityTimelineItem({
                   {placeTags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center rounded-full border border-white/30 bg-white/50 px-2.5 py-1 text-[11px] font-medium text-foreground/80 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/10"
+                      className="inline-flex items-center rounded-full border border-white/30 bg-white/50 px-2.5 py-1 text-[11px] font-medium text-foreground/80 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/10 print:border-gray-200 print:bg-gray-50 print:text-black print:shadow-none print:backdrop-blur-none"
                     >
                       {tag}
                     </span>
@@ -225,7 +227,7 @@ function ActivityTimelineItem({
             </div>
           )}
 
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-2 print:hidden">
             <Button
               size="sm"
               className="h-9 gap-1.5 border-0 bg-primary/90 shadow-sm backdrop-blur-sm print:hidden hover:bg-primary"
@@ -280,9 +282,9 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
   const allActivities = days.flatMap((day) => day.activities ?? []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-4 print:text-black">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-bold">برنامج الرحلة اليومي</h2>
+        <h2 className="text-lg font-bold print:text-xl">برنامج الرحلة اليومي</h2>
         <Button
           variant="outline"
           size="sm"
@@ -314,18 +316,18 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
       </Card>
 
       {hotel && (
-        <Card className="overflow-hidden">
-          <CardHeader className="bg-primary/5 border-b py-4">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <BedDouble className="w-4 h-4 text-primary" />
+        <Card className="overflow-hidden print:break-inside-avoid print:border print:border-gray-200 print:bg-white print:shadow-none">
+          <CardHeader className="border-b bg-primary/5 py-4 print:border-gray-200 print:bg-gray-50">
+            <CardTitle className="flex items-center gap-2 text-base font-bold print:text-black">
+              <BedDouble className="w-4 h-4 text-primary print:text-gray-700" />
               الإقامة المقترحة
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-4 space-y-3">
+          <CardContent className="space-y-3 pt-4 print:text-black">
             <div>
-              <h4 className="font-semibold leading-snug">{hotel.name}</h4>
+              <h4 className="font-semibold leading-snug print:text-black">{hotel.name}</h4>
               {hotel.description && (
-                <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground print:text-gray-700">
                   {hotel.description}
                 </p>
               )}
@@ -345,22 +347,22 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
       {days.map((day) => (
         <Card
           key={day.dayNumber}
-          className="overflow-hidden border-white/30 bg-gradient-to-br from-white/60 via-white/40 to-white/20 shadow-xl shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.06] dark:via-white/[0.03] dark:to-transparent"
+          className="overflow-hidden border-white/30 bg-gradient-to-br from-white/60 via-white/40 to-white/20 shadow-xl shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.06] dark:via-white/[0.03] dark:to-transparent print:break-inside-avoid print:border-gray-200 print:bg-white print:from-white print:via-white print:to-white print:shadow-none print:backdrop-blur-none dark:print:from-white dark:print:via-white dark:print:to-white"
           data-testid={`day-${day.dayNumber}`}
         >
-          <CardHeader className="border-b border-white/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent py-4 backdrop-blur-sm dark:border-white/10">
-            <CardTitle className="flex items-center justify-between gap-2 text-base font-bold tracking-tight">
+          <CardHeader className="border-b border-white/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent py-4 backdrop-blur-sm dark:border-white/10 print:border-gray-200 print:bg-gray-50 print:backdrop-blur-none">
+            <CardTitle className="flex items-center justify-between gap-2 text-base font-bold tracking-tight print:text-black">
               <span>{getArabicDayLabel(day.dayNumber)}</span>
               <Badge
                 variant="secondary"
-                className="border-white/30 bg-white/50 font-normal backdrop-blur-sm dark:border-white/10 dark:bg-white/10"
+                className="border-white/30 bg-white/50 font-normal backdrop-blur-sm dark:border-white/10 dark:bg-white/10 print:border-gray-200 print:bg-white print:text-black print:backdrop-blur-none"
               >
                 {day.activities?.length ?? 0}{" "}
                 {(day.activities?.length ?? 0) === 1 ? "نشاط" : "أنشطة"}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="bg-white/20 pt-6 backdrop-blur-sm dark:bg-transparent">
+          <CardContent className="bg-white/20 pt-6 backdrop-blur-sm dark:bg-transparent print:bg-white print:pt-4 print:backdrop-blur-none">
             {day.activities?.length ? (
               <div>
                 {day.activities.map((activity, index) => (

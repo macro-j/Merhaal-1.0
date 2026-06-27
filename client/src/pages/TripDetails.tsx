@@ -76,8 +76,8 @@ export default function TripDetails() {
   return (
     <AppShell title={trip.title || "تفاصيل الرحلة"} showBack>
       <div className="space-y-8" dir="rtl">
-        <Card className="overflow-hidden border-none bg-gradient-to-br from-primary/10 via-background to-accent/10 shadow-sm">
-          <CardContent className="p-6 sm:p-8">
+        <Card className="overflow-hidden border-none bg-gradient-to-br from-primary/10 via-background to-accent/10 shadow-sm print:border print:border-gray-200 print:bg-white print:shadow-none">
+          <CardContent className="p-6 sm:p-8 print:p-4 print:text-black">
             <div className="flex flex-col gap-5">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">وجهة الرحلة</p>

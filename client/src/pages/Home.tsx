@@ -2,7 +2,6 @@ import { useInView } from "@/hooks/useInView";
 import { Button } from "@/components/ui/button";
 import { CityDetailModal } from "@/components/CityDetailModal";
 import { Settings, Sparkles, Globe, Share2, ChevronLeft, ChevronRight, MapPin, LayoutGrid } from "lucide-react";
-import { Navbar } from "@/components/Navbar";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { DESTINATIONS_CATALOG, type DestinationCatalogItem } from "@/constants/destinationsCatalog";
@@ -181,7 +180,6 @@ export default function Home() {
         subtitle: 'ابدأ التخطيط الآن',
         button: 'ابدأ مجانًا'
       },
-      footer: '© 2026 مرحال. جميع الحقوق محفوظة.',
       createdByPrefix: 'تم التطوير بواسطة',
       createdByName: 'محمد'
     },
@@ -200,7 +198,6 @@ export default function Home() {
         subtitle: 'Start your next trip now',
         button: 'Start Free'
       },
-      footer: '© 2026 Merhaal. All rights reserved.',
       createdByPrefix: 'Created by',
       createdByName: 'Mohammed'
     }
@@ -210,11 +207,9 @@ export default function Home() {
 
   return (
     <div 
-      className={`min-h-screen ${isRTL ? 'rtl' : 'ltr'}`} 
+      className={`${isRTL ? 'rtl' : 'ltr'}`} 
       dir={isRTL ? 'rtl' : 'ltr'}
     >
-      <Navbar />
-
       {/* Hero — mobile: compact static, desktop: full-height */}
       <section 
         className="relative flex flex-col items-center justify-center overflow-hidden min-h-[60svh] md:min-h-[100svh]"
@@ -397,23 +392,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <footer 
-        className="bg-secondary/50 dark:bg-muted/30 py-6 md:py-10"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1.5rem)" }}
-      >
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-xs text-muted-foreground/70">
-              {t.footer}
-            </p>
-            <p className="text-[10px] text-muted-foreground/50">
-              {t.createdByPrefix}{' '}
-              <a href="https://www.linkedin.com/in/alamri-mh" target="_blank" rel="noopener noreferrer" className="underline hover:text-muted-foreground/80">{t.createdByName}</a>
-            </p>
-          </div>
-        </div>
-      </footer>
 
       <CityDetailModal
         destination={selectedDestination}

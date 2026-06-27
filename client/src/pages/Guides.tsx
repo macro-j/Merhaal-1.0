@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Navbar } from "@/components/Navbar";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { MapPin, Star, Search } from "lucide-react";
 import { useState } from "react";
@@ -101,12 +100,7 @@ export default function Guides() {
   });
 
   return (
-    <div
-      className={`min-h-screen bg-background ${isRTL ? "rtl" : "ltr"}`}
-      dir={isRTL ? "rtl" : "ltr"}
-    >
-      <Navbar />
-
+    <div dir={isRTL ? "rtl" : "ltr"}>
       <section
         className="pt-24 pb-10 md:pt-32 md:pb-14 bg-gradient-to-b from-primary/5 to-transparent"
         style={{ paddingTop: "calc(env(safe-area-inset-top) + 6rem)" }}
@@ -178,26 +172,6 @@ export default function Guides() {
           </div>
         </div>
       </section>
-
-      <footer
-        className="bg-secondary/50 py-10 mt-auto"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 2.5rem)" }}
-      >
-        <div className="container mx-auto px-4 text-center">
-          <p className="text-xs text-muted-foreground/70">{t.footer}</p>
-          <p className="text-[10px] text-muted-foreground/50">
-            {t.createdByPrefix}{" "}
-            <a
-              href="https://www.linkedin.com/in/alamri-mh"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-muted-foreground/80"
-            >
-              {t.createdByName}
-            </a>
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

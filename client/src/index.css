@@ -282,4 +282,24 @@
       text-rendering: geometricPrecision;
     }
   }
+}
+
+@media print {
+  *,
+  *::before,
+  *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
+
+  html,
+  body,
+  #root {
+    background: white !important;
+    color: black !important;
+  }
+
+  @page {
+    margin: 1.2cm;
+  }
+}

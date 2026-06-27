@@ -2,7 +2,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, Loader2 } from "lucide-react";
 import { useRoute } from "wouter";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { Navbar } from "@/components/Navbar";
 
 export default function SharedTrip() {
   const [, params] = useRoute("/shared/:token");
@@ -25,9 +24,8 @@ export default function SharedTrip() {
   const trip = null;
 
   return (
-    <div className="min-h-screen bg-background" dir={isRTL ? "rtl" : "ltr"}>
-      <Navbar />
-      <div className="container mx-auto px-4 py-24 max-w-3xl">
+    <div dir={isRTL ? "rtl" : "ltr"}>
+      <div className="container mx-auto max-w-3xl px-4 py-24 pt-[calc(env(safe-area-inset-top)+6rem)]">
         {isLoading ? (
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />

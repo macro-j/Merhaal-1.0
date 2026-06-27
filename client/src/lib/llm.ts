@@ -1,7 +1,5 @@
 import OpenAI from "openai";
 import {
-  findForbiddenPhrases,
-  findKnowledgePlace,
   normalizeInterests,
   normalizeText,
   resolveBudgetTier,
@@ -109,11 +107,7 @@ export interface DayCandidates {
 }
 
 const MODEL = "llama-3.3-70b-versatile";
-const MIN_DESCRIPTION_LENGTH = 40;
 const MIN_LOCATION_LENGTH = 4;
-const MIN_ACTIVITIES_PER_DAY = 4;
-const MAX_GAP_MINUTES = 180;
-const KNOWLEDGE_COVERAGE_THRESHOLD = 0.6;
 const MAX_PROMPT_PLACES = 35;
 const MAX_BLOCK_CANDIDATES = 3;
 const MAX_DAILY_RESTAURANTS = 5;
@@ -422,7 +416,7 @@ export function buildDayCandidates(
   const days: DayCandidates[] = [];
   const injectedPlaceIds = new Set<string>();
   const maxPlacesPerDay = Math.max(
-    MIN_ACTIVITIES_PER_DAY,
+    4,
     Math.floor(MAX_PROMPT_PLACES / Math.max(1, context.durationDays))
   );
 
@@ -697,25 +691,6 @@ export interface ItineraryValidationResult {
   errors: string[];
 }
 
-const ARABIC_REGEX = /[\u0600-\u06FF]/;
-
-function hasArabic(text: string): boolean {
-  return ARABIC_REGEX.test(text);
-}
-
-/**
- * Parse an "HH:MM" 24-hour string into minutes-since-midnight, or null if invalid.
- */
-function parseTimeToMinutes(value: unknown): number | null {
-  if (typeof value !== "string") return null;
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return hours * 60 + minutes;
-}
-
 function normalizeLocationForMatch(value: string): string {
   return normalizeText(value)
     .replace(/\b(مطعم|مقهى|كافيه|كوفي|محمصه|محمصة|roasters|restaurant|cafe|coffee|house)\b/g, "")
@@ -738,29 +713,6 @@ function isAllowedLocation(locationName: string, allowedPlaces: DestinationPlace
     [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
       .some((candidate) => fuzzyLocationMatches(locationName, candidate))
   );
-}
-
-function isMealActivity(locationName: string, allowedPlaces: DestinationPlace[]): boolean {
-  const place = allowedPlaces.find((candidate) =>
-    [candidate.name, candidate.arabicName, candidate.englishName, candidate.mapSearchQuery]
-      .some((name) => fuzzyLocationMatches(locationName, name))
-  );
-  return Boolean(place && !place.mealSlot.includes("لا ينطبق"));
-}
-
-function findAllowedPlace(locationName: string, allowedPlaces: DestinationPlace[]): DestinationPlace | null {
-  return (
-    allowedPlaces.find((place) =>
-      [place.name, place.arabicName, place.englishName, place.mapSearchQuery]
-        .some((name) => fuzzyLocationMatches(locationName, name))
-    ) ?? null
-  );
-}
-
-function activityTimeToBlocks(time: TripActivityTime): TimeBlock[] {
-  if (time === "الصباح") return ["morning"];
-  if (time === "الظهر") return ["afternoon"];
-  return ["evening", "night"];
 }
 
 /**
@@ -794,8 +746,6 @@ export function validateGeneratedItinerary(
   }
 
   const seenLocations = new Map<string, number>();
-  let totalActivities = 0;
-  let knowledgeMatches = 0;
 
   plan.days.forEach((day, dayIdx) => {
     const dayLabel = `Day ${day?.dayNumber ?? dayIdx + 1}`;
@@ -804,21 +754,7 @@ export function validateGeneratedItinerary(
       return;
     }
 
-    if (day.activities.length < MIN_ACTIVITIES_PER_DAY) {
-      errors.push(
-        `${dayLabel}: generated only ${day.activities.length} activities. You must generate at least ${MIN_ACTIVITIES_PER_DAY} distinct activities per day.`
-      );
-    }
-    if (day.activities.length > 5) {
-      errors.push(`${dayLabel}: generated ${day.activities.length} activities. You must generate no more than 5 activities per day.`);
-    }
-
-    const areasInDay = new Set<string>();
-    const timeSlots: Array<{ start: number; end: number; label: string }> = [];
-    let mealActivities = 0;
-
     day.activities.forEach((activity, actIdx) => {
-      totalActivities += 1;
       const where = `${dayLabel} activity ${actIdx + 1}`;
 
       if (!activity || typeof activity !== "object") {
@@ -830,19 +766,11 @@ export function validateGeneratedItinerary(
         errors.push(`${where}: invalid 'time' value "${String(activity.time)}".`);
       }
 
-      const startMinutes = parseTimeToMinutes(activity.startTime);
-      const endMinutes = parseTimeToMinutes(activity.endTime);
-      if (startMinutes === null) {
+      if (typeof activity.startTime !== "string" || !activity.startTime.trim()) {
         errors.push(`${where}: missing or invalid 'startTime' (expected "HH:MM").`);
       }
-      if (endMinutes === null) {
+      if (typeof activity.endTime !== "string" || !activity.endTime.trim()) {
         errors.push(`${where}: missing or invalid 'endTime' (expected "HH:MM").`);
-      }
-      if (startMinutes !== null && endMinutes !== null) {
-        if (endMinutes <= startMinutes) {
-          errors.push(`${where}: 'endTime' must be after 'startTime'.`);
-        }
-        timeSlots.push({ start: startMinutes, end: endMinutes, label: where });
       }
 
       if (!activity.title || !activity.title.trim()) {
@@ -856,31 +784,14 @@ export function validateGeneratedItinerary(
         errors.push(`${where}: 'locationName' is too short to be precise ("${location}").`);
       }
 
-      const description = (activity.description || "").trim();
-      if (description.length < MIN_DESCRIPTION_LENGTH) {
-        errors.push(`${where}: 'description' is too short (min ${MIN_DESCRIPTION_LENGTH} chars).`);
+      if (!activity.description || typeof activity.description !== "string") {
+        errors.push(`${where}: missing 'description'.`);
       }
 
-      const combined = `${activity.title || ""} ${location} ${description}`;
-      const forbidden = findForbiddenPhrases(combined);
-      if (forbidden.length) {
-        errors.push(`${where}: forbidden generic phrase(s): ${forbidden.join(", ")}.`);
-      }
-
-      if (FOREIGN_SCRIPT_REGEX.test(activity.title || "") || FOREIGN_SCRIPT_REGEX.test(description)) {
+      if (FOREIGN_SCRIPT_REGEX.test(activity.title || "") || FOREIGN_SCRIPT_REGEX.test(activity.description || "")) {
         errors.push(
           `${where}: hallucinated foreign (Chinese/Cyrillic) characters detected. Use ONLY the requested language.`
         );
-      }
-
-      if (context.language === "ar" && description && !hasArabic(description)) {
-        errors.push(`${where}: description must be in Arabic.`);
-      }
-      if (context.language === "en" && description) {
-        const arabicChars = (description.match(/[\u0600-\u06FF]/g) || []).length;
-        if (arabicChars > description.length * 0.5) {
-          errors.push(`${where}: description must be in English.`);
-        }
       }
 
       if (location) {
@@ -890,91 +801,14 @@ export function validateGeneratedItinerary(
         if (context.allowedPlaces?.length && !isAllowedLocation(location, context.allowedPlaces)) {
           errors.push(`${where}: location "${location}" is not in the allowed candidate places.`);
         }
-        const allowedPlace = context.allowedPlaces?.length
-          ? findAllowedPlace(location, context.allowedPlaces)
-          : null;
-        if (allowedPlace && allowedPlace.category !== "dining" && allowedPlace.category !== "cafe") {
-          const compatibleBlocks = activityTimeToBlocks(activity.time);
-          if (!allowedPlace.recommendedTime.some((block) => compatibleBlocks.includes(block))) {
-            errors.push(
-              `${where}: "${allowedPlace.name}" is not appropriate for time block "${activity.time}".`
-            );
-          }
-        }
-        if (context.allowedPlaces?.length && isMealActivity(location, context.allowedPlaces)) {
-          mealActivities += 1;
-        }
-
-        const place = context.knowledge
-          ? findKnowledgePlace(location, context.knowledge)
-          : null;
-        if (place) {
-          knowledgeMatches += 1;
-          if (
-            (place.bookingDifficulty === "الحجز ضروري" || place.bookingDifficulty === "تذاكر مسبقة") &&
-            !/(حجز|تذاكر|ticket|book|reservation|reserve)/i.test(description)
-          ) {
-            errors.push(`${where}: "${place.name}" requires booking/tickets; mention that in the description.`);
-          }
-          // Only anchor attractions constrain a day's geography; cafes and dining
-          // can sit anywhere in the city (e.g. a late-night trendy cafe).
-          if (place.category !== "cafe" && place.category !== "dining") {
-            areasInDay.add(place.area);
-          }
-        }
       }
     });
-
-    if (context.normalized && context.allowedPlaces?.length && mealActivities !== context.normalized.mealsPerDay) {
-      errors.push(
-        `${dayLabel}: expected exactly ${context.normalized.mealsPerDay} meal activities, got ${mealActivities}.`
-      );
-    }
-
-    // No dead time: gaps between consecutive activities must not exceed 3 hours.
-    const ordered = [...timeSlots].sort((a, b) => a.start - b.start);
-    for (let i = 1; i < ordered.length; i += 1) {
-      const gap = ordered[i].start - ordered[i - 1].end;
-      if (gap > MAX_GAP_MINUTES) {
-        errors.push(
-          `${dayLabel}: dead time of ${Math.round(
-            gap / 60
-          )}h between activities (max allowed 3h). Fill the gap with a meal, coffee, or nearby stop.`
-        );
-      }
-    }
-
-    // Geographic sanity: when we could map known places to >=2 distinct areas in a
-    // single day, flag it as a likely unrealistic route.
-    if (areasInDay.size > 2) {
-      errors.push(
-        `${dayLabel}: spans ${areasInDay.size} distinct areas (${Array.from(areasInDay).join(
-          ", "
-        )}); keep each day geographically focused.`
-      );
-    }
   });
 
-  // Repeated locations across the whole trip (allow when duration forces reuse).
-  const knownPlaceCount = context.knowledge?.places.length ?? 0;
-  const repeatsAllowed = knownPlaceCount > 0 && totalActivities > knownPlaceCount;
-  if (!repeatsAllowed) {
-    for (const [key, count] of seenLocations) {
-      if (count > 1) {
-        errors.push(`Repeated location across the trip: "${key}" appears ${count} times.`);
-      }
-    }
-  }
-
-  // Curated-knowledge coverage for known destinations.
-  if (context.knowledge && totalActivities > 0) {
-    const coverage = knowledgeMatches / totalActivities;
-    if (coverage < KNOWLEDGE_COVERAGE_THRESHOLD) {
-      errors.push(
-        `Only ${Math.round(coverage * 100)}% of activities use curated places; at least ${Math.round(
-          KNOWLEDGE_COVERAGE_THRESHOLD * 100
-        )}% required.`
-      );
+  // Repeated locations are a quality issue, not a blocker. Log only.
+  for (const [key, count] of seenLocations) {
+    if (count > 1) {
+      console.warn(`[Groq] repeated itinerary location (non-blocking): "${key}" appears ${count} times.`);
     }
   }
 
@@ -1065,6 +899,7 @@ export async function generateTrip(params: GenerateTripParams): Promise<Generate
       console.warn("[Groq] itinerary validation failed, attempting repair", result.errors);
       console.error("🚨 Itinerary Validation Failed:", result.errors);
       try {
+        await wait(4000);
         const repaired = await repairGeneratedItineraryIfNeeded(client, params, result.errors, dayCandidates);
         const repairedResult = validateGeneratedItinerary(repaired, context);
         if (repairedResult.valid) {

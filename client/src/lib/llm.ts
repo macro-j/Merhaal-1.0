@@ -616,6 +616,12 @@ CRITICAL: These are the ONLY locations you may use. Do not use the full knowledg
 ${candidatePayload}
 </allowed_candidate_places>
 
+<location_uniqueness_law>
+CRITICAL RULE: NEVER repeat a location. Every single activity in the itinerary MUST use a completely unique locationName from the provided candidates. Repeating a location will ruin the user's trip.
+- No locationName may appear more than once across the entire trip — not within the same day, and not across different days.
+- Before finalizing JSON, verify every activity.locationName is distinct; if you would reuse a place, pick a different candidate instead.
+</location_uniqueness_law>
+
 <strict_time_and_logic_laws>
 CRITICAL: You must obey the physics of time and the reality of Saudi tourism.
 1. MORNINGS (08:00 - 12:00) -> time = "الصباح": select from that day's "m" candidates only. Prefer heritage, nature, scenic starts, iconic landmarks, or breakfast/brunch cafes. NEVER schedule entertainment zones or malls here.
@@ -624,7 +630,7 @@ CRITICAL: You must obey the physics of time and the reality of Saudi tourism.
 4. NO DEAD TIME: the gap between the END of one activity and the START of the next MUST NOT exceed 3 hours (180 min). Keep only realistic transitions (~20-45 min). If one ends at 11:30, the next must start by 14:30 at the latest.
 5. DENSITY: provide EXACTLY 4 to 5 activities per day — never fewer than 4 and never more than 5.
 6. CLOCK FIELDS: every activity MUST have 24-hour "startTime" and "endTime" ("HH:MM"), chronological and non-overlapping, with "time" matching the block above. Realistic durations: heritage/museum ~1.5-2.5h, coffee ~45-60min, lunch ~1-1.5h, dinner ~1.5-2h, major attraction ~2-3h.
-7. ASYMMETRIC PACING: do NOT reuse an identical daily template — vary start times and mood (e.g. one day ends late at a trendy cafe, another starts early for heritage). Never repeat the same place across days unless duration forces it.
+7. ASYMMETRIC PACING: do NOT reuse an identical daily template — vary start times and mood (e.g. one day ends late at a trendy cafe, another starts early for heritage).
 </strict_time_and_logic_laws>
 
 <style_mapping_laws>

@@ -8,6 +8,11 @@ import {
   AccordionContent,
 } from "@/components/ui/accordion";
 import type { TripActivity, TripDay, TripHotel } from "@/lib/llm";
+import {
+  findKnowledgePlace,
+  resolveDestination,
+  type DestinationPlace,
+} from "@/lib/destinationsData";
 import { buildMapsUrl } from "@/lib/maps";
 import { cn, getLocalizedName } from "@/lib/utils";
 import {
@@ -80,9 +85,39 @@ function TimeIcon({ time }: { time: string }) {
 }
 
 function timeBadgeClass(time: string): string {
-  if (time === "الصباح") return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
-  if (time === "الظهر") return "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20";
-  return "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-500/20";
+  if (time === "الصباح") return "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/25";
+  if (time === "الظهر") return "bg-orange-500/15 text-orange-800 dark:text-orange-300 border-orange-500/25";
+  return "bg-indigo-500/15 text-indigo-800 dark:text-indigo-300 border-indigo-500/25";
+}
+
+function timeAccentClass(time: string): string {
+  if (time === "الصباح") return "from-amber-400/30 via-amber-300/10 to-transparent";
+  if (time === "الظهر") return "from-orange-400/30 via-orange-300/10 to-transparent";
+  return "from-indigo-400/30 via-violet-300/10 to-transparent";
+}
+
+function lookupPlace(locationName: string, destination: string): DestinationPlace | null {
+  const knowledge = resolveDestination(destination);
+  if (!knowledge || !locationName) return null;
+  return findKnowledgePlace(locationName, knowledge);
+}
+
+function isLuxuryPlace(place: DestinationPlace): boolean {
+  return place.budgetLevel.includes("luxury");
+}
+
+function requiresAdvanceBooking(place: DestinationPlace): boolean {
+  return (
+    place.bookingDifficulty === "الحجز ضروري" || place.bookingDifficulty === "تذاكر مسبقة"
+  );
+}
+
+function getPlaceTags(place: DestinationPlace | null): string[] {
+  if (!place) return [];
+  const tags: string[] = [];
+  if (isLuxuryPlace(place)) tags.push("✨ فاخر");
+  if (requiresAdvanceBooking(place)) tags.push("🎟️ يتطلب حجز مسبق");
+  return tags;
 }
 
 function ActivityTimelineItem({
@@ -94,7 +129,9 @@ function ActivityTimelineItem({
   destination: string;
   isLast: boolean;
 }) {
-  const mapsQuery = activity.locationName || activity.title;
+  const place = lookupPlace(activity.locationName, destination);
+  const placeTags = getPlaceTags(place);
+  const mapsQuery = place?.mapSearchQuery || activity.locationName || activity.title;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     mapsQuery
   )}`;
@@ -107,60 +144,115 @@ function ActivityTimelineItem({
     <div className="relative flex gap-4 pb-8 last:pb-0" data-testid={`activity-${activity.title}`}>
       {!isLast && (
         <span
-          className="absolute top-10 bottom-0 w-px bg-border"
+          className="absolute top-12 bottom-0 w-px bg-gradient-to-b from-primary/30 via-border to-transparent"
           style={{ insetInlineStart: "1.125rem" }}
           aria-hidden
         />
       )}
 
-      <div className="relative z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background shadow-sm">
+      <div
+        className={cn(
+          "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/70 shadow-md shadow-black/5 backdrop-blur-md dark:border-white/10 dark:bg-white/10"
+        )}
+      >
         <TimeIcon time={activity.time} />
       </div>
 
-      <div className="flex-1 min-w-0 pt-0.5">
-        <div className="flex flex-wrap items-center gap-2 mb-2">
-          <Badge variant="outline" className={cn("text-xs font-medium", timeBadgeClass(activity.time))}>
-            {activity.time}
-          </Badge>
-          {activity.startTime && activity.endTime && (
-            <Badge variant="secondary" className="text-xs font-normal gap-1">
-              <Clock className="w-3 h-3" />
-              {activity.startTime} - {activity.endTime}
-            </Badge>
+      <div
+        className={cn(
+          "relative flex-1 min-w-0 overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-white/75 via-white/55 to-white/35 p-5 shadow-lg shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-transparent dark:shadow-black/20"
+        )}
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b opacity-80",
+            timeAccentClass(activity.time)
           )}
-        </div>
+          aria-hidden
+        />
 
-        <h4 className="text-base font-semibold leading-snug">{activity.title}</h4>
-
-        {activity.description && (
-          <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{activity.description}</p>
-        )}
-
-        {activity.locationName && (
-          <div className="flex items-start gap-2 mt-3 text-sm text-foreground/80">
-            <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-            <span>{activity.locationName}</span>
+        <div className="relative">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[11px] font-semibold tracking-wide backdrop-blur-sm",
+                timeBadgeClass(activity.time)
+              )}
+            >
+              {activity.time}
+            </Badge>
+            {activity.startTime && activity.endTime && (
+              <Badge
+                variant="secondary"
+                className="text-[11px] font-medium gap-1 border-white/20 bg-white/50 text-foreground/80 backdrop-blur-sm dark:bg-white/10"
+              >
+                <Clock className="w-3 h-3 opacity-70" />
+                {activity.startTime} – {activity.endTime}
+              </Badge>
+            )}
           </div>
-        )}
 
-        <div className="flex flex-wrap gap-2 mt-4">
-          <Button size="sm" className="h-9 gap-1.5 print:hidden" asChild>
-            <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
-              <MapPin className="w-3.5 h-3.5" />
-              فتح في خرائط Google
-              <ExternalLink className="w-3 h-3 opacity-70" />
-            </a>
-          </Button>
+          <h4 className="text-[1.05rem] font-semibold leading-snug tracking-tight text-foreground">
+            {activity.title}
+          </h4>
 
-          {bookingUrl && (
-            <Button variant="outline" size="sm" className="h-9 gap-1.5 print:hidden" asChild>
-              <a href={bookingUrl} target="_blank" rel="noopener noreferrer">
-                <Search className="w-3.5 h-3.5" />
-                ابحث عن الحجز
-                <ExternalLink className="w-3 h-3 opacity-60" />
+          {activity.description && (
+            <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground/90">
+              {activity.description}
+            </p>
+          )}
+
+          {activity.locationName && (
+            <div className="mt-4 space-y-2.5">
+              <div className="flex items-start gap-2 text-sm font-medium text-foreground/90">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span className="leading-snug">{activity.locationName}</span>
+              </div>
+
+              {placeTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 ps-6">
+                  {placeTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center rounded-full border border-white/30 bg-white/50 px-2.5 py-1 text-[11px] font-medium text-foreground/80 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/10"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              className="h-9 gap-1.5 border-0 bg-primary/90 shadow-sm backdrop-blur-sm print:hidden hover:bg-primary"
+              asChild
+            >
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
+                <MapPin className="w-3.5 h-3.5" />
+                فتح في خرائط Google
+                <ExternalLink className="w-3 h-3 opacity-70" />
               </a>
             </Button>
-          )}
+
+            {bookingUrl && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9 gap-1.5 border-white/40 bg-white/40 backdrop-blur-sm print:hidden hover:bg-white/60 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/15"
+                asChild
+              >
+                <a href={bookingUrl} target="_blank" rel="noopener noreferrer">
+                  <Search className="w-3.5 h-3.5" />
+                  ابحث عن الحجز
+                  <ExternalLink className="w-3 h-3 opacity-60" />
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -251,17 +343,24 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
       )}
 
       {days.map((day) => (
-        <Card key={day.dayNumber} className="overflow-hidden" data-testid={`day-${day.dayNumber}`}>
-          <CardHeader className="bg-primary/5 border-b py-4">
-            <CardTitle className="text-base font-bold flex items-center justify-between gap-2">
+        <Card
+          key={day.dayNumber}
+          className="overflow-hidden border-white/30 bg-gradient-to-br from-white/60 via-white/40 to-white/20 shadow-xl shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.06] dark:via-white/[0.03] dark:to-transparent"
+          data-testid={`day-${day.dayNumber}`}
+        >
+          <CardHeader className="border-b border-white/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent py-4 backdrop-blur-sm dark:border-white/10">
+            <CardTitle className="flex items-center justify-between gap-2 text-base font-bold tracking-tight">
               <span>{getArabicDayLabel(day.dayNumber)}</span>
-              <Badge variant="secondary" className="font-normal">
+              <Badge
+                variant="secondary"
+                className="border-white/30 bg-white/50 font-normal backdrop-blur-sm dark:border-white/10 dark:bg-white/10"
+              >
                 {day.activities?.length ?? 0}{" "}
                 {(day.activities?.length ?? 0) === 1 ? "نشاط" : "أنشطة"}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="bg-white/20 pt-6 backdrop-blur-sm dark:bg-transparent">
             {day.activities?.length ? (
               <div>
                 {day.activities.map((activity, index) => (

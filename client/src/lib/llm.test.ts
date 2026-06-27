@@ -179,6 +179,7 @@ describe("buildSystemPrompt", () => {
     expect(prompt).toContain("Budget & Style: متوسطة (internal tier: midRange)");
     expect(prompt).toContain("عريق وتراثي");
     expect(prompt).toContain("<role>");
+    expect(prompt).toContain("NEVER repeat a location");
   });
 
   it("maps the luxury tier correctly", () => {

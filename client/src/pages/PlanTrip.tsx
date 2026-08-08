@@ -12,7 +12,6 @@ import {
   Calendar as CalendarIcon,
   Wallet,
   Sparkles,
-  Eye,
   ChevronLeft,
   ChevronRight,
   Check,
@@ -24,6 +23,9 @@ import {
   Coins,
   Scale,
   Users,
+  Minus,
+  Plus,
+  LockKeyhole,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -88,13 +90,14 @@ const MOOD_CARDS: Array<{
   { value: "حيوية وترفيه", titleAr: "حيوية وترفيه", titleEn: "Entertainment", icon: PartyPopper },
 ];
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 
 const generatingMessages = [
-  "تحليل تفضيلاتك",
-  "اختيار الأماكن الأنسب",
-  "ترتيب الجدول اليومي",
-  "تنسيق اللمسات الأخيرة",
+  { ar: "تجهيز الرحلة", en: "Preparing your trip" },
+  { ar: "اختيار الأماكن", en: "Selecting places" },
+  { ar: "ترتيب الأيام", en: "Arranging the days" },
+  { ar: "موازنة الميزانية", en: "Balancing the budget" },
+  { ar: "تجهيز خطتك", en: "Finalizing your plan" },
 ];
 
 export default function PlanTrip() {
@@ -193,7 +196,6 @@ export default function PlanTrip() {
     { ar: "التاريخ والمدة", en: "Date & Duration", icon: CalendarIcon },
     { ar: "نمط الرحلة", en: "Trip Style", icon: Wallet },
     { ar: "جو الرحلة", en: "Vibe", icon: Sparkles },
-    { ar: "المراجعة", en: "Review", icon: Eye },
   ];
 
   const canProceed = (): boolean => {
@@ -206,8 +208,6 @@ export default function PlanTrip() {
         return Boolean(budgetTier);
       case 4:
         return interests.length > 0;
-      case 5:
-        return true;
       default:
         return false;
     }
@@ -273,7 +273,7 @@ export default function PlanTrip() {
       toast.success(
         language === "ar" ? "تم إنشاء خطتك وحفظها بنجاح!" : "Your plan was created and saved!"
       );
-      setLocation("/my-plans");
+      setLocation(`/trip/${plan.id}`);
     } catch (error) {
       console.error("[PlanTrip] generateTrip failed", error);
       toast.error(formatLlmError(error, language), { duration: 8000 });
@@ -336,22 +336,21 @@ export default function PlanTrip() {
             <Loader2 className="w-6 h-6 animate-spin mx-auto" />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {destinations?.map((dest) => (
-              <div
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+            {destinations?.filter((dest) => dest.status === "active").map((dest) => (
+              <button
+                type="button"
                 key={dest.id}
-                onClick={() => dest.status === "active" && setSelectedDestination(dest.id)}
-                aria-disabled={dest.status !== "active"}
-                className={`relative rounded-md overflow-visible border-2 transition-colors ${
-                  dest.status === "active" ? "cursor-pointer" : "cursor-not-allowed opacity-70"
-                } ${
+                onClick={() => setSelectedDestination(dest.id)}
+                className={`relative overflow-hidden rounded-lg border-2 text-start transition-[border-color,transform,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                   selectedDestination === dest.id
-                    ? "border-primary"
-                    : "border-border"
+                    ? "border-primary shadow-md"
+                    : "border-border hover:border-primary/50"
                 }`}
                 data-testid={`card-destination-${dest.id}`}
               >
-                <div className="aspect-video relative overflow-hidden rounded-md">
+                <div className="relative aspect-[4/5] overflow-hidden sm:aspect-video">
                   <img
                     src={
                       destinationImages[dest.slug] ||
@@ -364,18 +363,41 @@ export default function PlanTrip() {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
-                  {dest.status !== "active" && (
-                    <Badge className="absolute top-3 end-3 bg-background/90 text-foreground hover:bg-background/90">
-                      {language === "ar" ? "قريبًا" : "Coming Soon"}
-                    </Badge>
+                  {selectedDestination === dest.id && (
+                    <span className="absolute end-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
+                      <Check className="h-4 w-4" />
+                    </span>
                   )}
-                  <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-                    <h3 className="text-lg font-bold">{getLocalizedName(dest.nameAr, dest.nameEn, language)}</h3>
-                    <p className="text-sm text-gray-200">{getDestinationSubtitle(dest, language)}</p>
+                  <div className="absolute inset-x-0 bottom-0 p-3 text-white sm:p-4">
+                    <h3 className="text-base font-bold sm:text-lg">{getLocalizedName(dest.nameAr, dest.nameEn, language)}</h3>
+                    <p className="line-clamp-1 text-xs text-gray-200 sm:text-sm">{getDestinationSubtitle(dest, language)}</p>
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {language === "ar" ? "وجهات قادمة" : "Coming next"}
+              </p>
+              <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
+                {destinations?.filter((dest) => dest.status !== "active").map((dest) => (
+                  <div
+                    key={dest.id}
+                    aria-disabled="true"
+                    className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg border bg-muted/35 px-3 text-sm text-muted-foreground"
+                    data-testid={`card-destination-${dest.id}`}
+                  >
+                    <LockKeyhole className="h-3.5 w-3.5" />
+                    <span>{getLocalizedName(dest.nameAr, dest.nameEn, language)}</span>
+                    <Badge variant="outline" className="text-[10px]">
+                      {language === "ar" ? "قريبًا" : "Soon"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </CardContent>
@@ -534,18 +556,33 @@ export default function PlanTrip() {
           <Label htmlFor="travelerCount">
             {language === "ar" ? "عدد المسافرين" : "Number of travelers"}
           </Label>
-          <div className="relative">
-            <Users className="pointer-events-none absolute top-1/2 start-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              id="travelerCount"
-              type="number"
-              min="1"
-              max="12"
-              value={travelerCount}
-              onChange={(event) => setTravelerCount(Math.min(12, Math.max(1, Number(event.target.value) || 1)))}
-              data-testid="input-traveler-count"
-              className="h-12 rounded-xl ps-11 text-base"
-            />
+          <div className="grid h-12 grid-cols-[3rem_1fr_3rem] overflow-hidden rounded-lg border bg-background">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-12 w-12 rounded-none"
+              disabled={travelerCount <= 1}
+              onClick={() => setTravelerCount((count) => Math.max(1, count - 1))}
+              aria-label={language === "ar" ? "تقليل عدد المسافرين" : "Decrease travelers"}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center justify-center gap-2 border-x font-semibold" data-testid="input-traveler-count">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span>{travelerCount}</span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-12 w-12 rounded-none"
+              disabled={travelerCount >= 12}
+              onClick={() => setTravelerCount((count) => Math.min(12, count + 1))}
+              aria-label={language === "ar" ? "زيادة عدد المسافرين" : "Increase travelers"}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             {language === "ar"
@@ -649,121 +686,30 @@ export default function PlanTrip() {
             );
           })}
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg bg-muted/45 px-3 py-2.5 text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5">
+            <MapPin className="h-3.5 w-3.5" />
+            {selectedDest ? getLocalizedName(selectedDest.nameAr, selectedDest.nameEn, language) : "—"}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <CalendarIcon className="h-3.5 w-3.5" />
+            {days} {language === "ar" ? (days === 1 ? "يوم" : "أيام") : days === 1 ? "day" : "days"}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            {travelerCount}
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Wallet className="h-3.5 w-3.5" />
+            {totalBudgetSAR.toLocaleString(language === "ar" ? "ar-SA" : "en-US")} {language === "ar" ? "ر.س" : "SAR"}
+          </span>
+        </div>
       </CardContent>
     </Card>
   );
 
-  const renderStep5 = () => {
-    const budgetCard = BUDGET_TIER_CARDS.find((t) => t.value === budgetTier);
 
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="w-5 h-5" />
-            {language === "ar" ? "مراجعة وتوليد" : "Review & Generate"}
-          </CardTitle>
-          <CardDescription>
-            {language === "ar" ? "تأكد من التفاصيل ثم قم بتوليد الخطة" : "Confirm details then generate your plan"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الوجهة" : "Destination"}
-                </p>
-                <p className="font-medium">{selectedDest ? getLocalizedName(selectedDest.nameAr, selectedDest.nameEn, language) : "-"}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <CalendarIcon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "تاريخ البداية" : "Start Date"}
-                </p>
-                <p className="font-medium">{formatDate(startDate, language) || "-"}</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <CalendarIcon className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "المدة" : "Duration"}
-                </p>
-                <p className="font-medium">
-                  {days} {language === "ar" ? (days === 1 ? "يوم" : "أيام") : (days === 1 ? "day" : "days")}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <Wallet className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "نمط الرحلة" : "Trip Style"}
-                </p>
-                <p className="font-medium" data-testid="text-review-budget-tier">
-                  {budgetCard
-                    ? language === "ar"
-                      ? budgetCard.titleAr
-                      : budgetCard.titleEn
-                    : budgetTier}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <Coins className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الميزانية الإجمالية" : "Total Budget"}
-                </p>
-                <p className="font-medium">
-                  {totalBudgetSAR.toLocaleString(language === "ar" ? "ar-SA" : "en-US")}{" "}
-                  {language === "ar" ? "ريال" : "SAR"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 py-2 border-b border-border">
-              <Users className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "عدد المسافرين" : "Travelers"}
-                </p>
-                <p className="font-medium">{travelerCount}</p>
-              </div>
-            </div>
-
-            {interests.length > 0 && (
-              <div className="flex items-start gap-3 py-2">
-                <Sparkles className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1">
-                    {language === "ar" ? "جو الرحلة" : "Vibe"}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {interests.map((i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
-                        {i}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
-
-  const stepContent = [renderStep1, renderStep2, renderStep3, renderStep4, renderStep5];
+  const stepContent = [renderStep1, renderStep2, renderStep3, renderStep4];
 
   return (
     <AppShell title={language === "ar" ? "خطط رحلة" : "Plan Trip"}>
@@ -889,19 +835,27 @@ export default function PlanTrip() {
             </div>
 
             <h2 className="text-xl font-bold" data-testid="text-generating-title">
-              {language === "ar" ? "جاري تصميم رحلتك الذكية..." : "Designing your smart trip..."}
+              {language === "ar" ? "نصمم رحلتك الآن" : "Designing your trip"}
             </h2>
 
             <p
               key={msgIndex}
-              className="text-sm text-muted-foreground animate-pulse"
+              className="min-h-6 text-sm text-muted-foreground animate-pulse"
               data-testid="text-generating-subtitle"
+              aria-live="polite"
             >
-              {generatingMessages[msgIndex]}
+              {generatingMessages[msgIndex][language]}
             </p>
 
-            <div className="mt-4 w-48 overflow-hidden rounded-full bg-muted h-1.5">
-              <div className="h-full w-full origin-left animate-[progress_6s_ease-in-out_infinite] rounded-full bg-primary" />
+            <div className="flex items-center gap-2" aria-hidden="true">
+              {generatingMessages.map((message, index) => (
+                <span
+                  key={message.en}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    index === msgIndex ? "w-8 bg-primary" : "w-2 bg-muted"
+                  }`}
+                />
+              ))}
             </div>
           </div>
         </div>

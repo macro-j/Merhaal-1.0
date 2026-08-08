@@ -1,39 +1,37 @@
 import { useEffect, useMemo } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  Polyline,
+  Popup,
+  TileLayer,
+  useMap,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import {
   findKnowledgePlace,
   getDestinationCenter,
   resolveDestination,
   type LatLng,
 } from "@/lib/destinationsData";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { useTheme } from "@/contexts/ThemeContext";
+import { cn } from "@/lib/utils";
 import type { TripActivity } from "@shared/tripTypes";
 
-// Vite serves Leaflet's default marker images as URLs; wire them up so markers render.
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
-
-interface MarkerPoint {
+export interface MarkerPoint {
+  activityId: string;
+  order: number;
   lat: number;
   lng: number;
   title: string;
   time: string;
+  startTime: string;
   locationName: string;
 }
 
-/**
- * Match each activity's locationName against the curated knowledge base and
- * collect the ones with real coordinates. De-duplicates by coordinate so repeated
- * stops don't stack markers.
- */
-function getActivityMarkers(
+export function getActivityMarkers(
   activities: TripActivity[],
   destination: string
 ): MarkerPoint[] {
@@ -43,42 +41,47 @@ function getActivityMarkers(
   const seen = new Set<string>();
   const points: MarkerPoint[] = [];
 
-  for (const activity of activities) {
+  activities.forEach((activity, index) => {
     const location = activity?.locationName?.trim();
-    if (!location) continue;
-
+    if (!location) return;
     const place = findKnowledgePlace(location, knowledge);
-    if (!place?.coordinates) continue;
+    if (!place?.coordinates) return;
 
     const key = `${place.coordinates.lat},${place.coordinates.lng}`;
-    if (seen.has(key)) continue;
+    if (seen.has(key)) return;
     seen.add(key);
-
     points.push({
+      activityId: activity.id,
+      order: index + 1,
       lat: place.coordinates.lat,
       lng: place.coordinates.lng,
       title: activity.title || place.name,
       time: activity.time || "",
+      startTime: activity.startTime || "",
       locationName: location,
     });
-  }
+  });
 
   return points;
 }
 
-/**
- * Auto-fits the map to all plotted markers, or recenters on the destination when
- * there are none.
- */
-function FitBounds({ points, center }: { points: MarkerPoint[]; center: LatLng }) {
+function FitBounds({
+  points,
+  center,
+}: {
+  points: MarkerPoint[];
+  center: LatLng;
+}) {
   const map = useMap();
 
   useEffect(() => {
     if (points.length > 0) {
-      const bounds = L.latLngBounds(
-        points.map((p) => [p.lat, p.lng] as [number, number])
+      map.fitBounds(
+        L.latLngBounds(
+          points.map(point => [point.lat, point.lng] as [number, number])
+        ),
+        { padding: [42, 42], maxZoom: 14 }
       );
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
     } else {
       map.setView([center.lat, center.lng], 11);
     }
@@ -87,24 +90,80 @@ function FitBounds({ points, center }: { points: MarkerPoint[]; center: LatLng }
   return null;
 }
 
+function FocusActivity({
+  points,
+  activeActivityId,
+}: {
+  points: MarkerPoint[];
+  activeActivityId?: string;
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!activeActivityId) return;
+    const active = points.find(point => point.activityId === activeActivityId);
+    if (active) map.panInside([active.lat, active.lng], { padding: [36, 36] });
+  }, [activeActivityId, map, points]);
+
+  return null;
+}
+
+function markerIcon(order: number, selected: boolean): L.DivIcon {
+  return L.divIcon({
+    className: "merhaal-map-marker-shell",
+    html: `<span class="merhaal-map-marker${selected ? " is-selected" : ""}">${order}</span>`,
+    iconSize: selected ? [36, 36] : [30, 30],
+    iconAnchor: selected ? [18, 18] : [15, 15],
+    popupAnchor: [0, -18],
+  });
+}
+
 interface TripMapProps {
   destination: string;
   activities?: TripActivity[];
+  activeActivityId?: string;
+  onSelectActivity?: (activityId: string) => void;
   className?: string;
 }
 
-export default function TripMap({ destination, activities = [], className }: TripMapProps) {
-  const center = useMemo(() => getDestinationCenter(destination), [destination]);
+export default function TripMap({
+  destination,
+  activities = [],
+  activeActivityId,
+  onSelectActivity,
+  className,
+}: TripMapProps) {
+  const { language, isRTL } = useLanguage();
+  const { theme } = useTheme();
+  const center = useMemo(
+    () => getDestinationCenter(destination),
+    [destination]
+  );
   const points = useMemo(
     () => getActivityMarkers(activities, destination),
     [activities, destination]
   );
+  const routePositions = points.map(
+    point => [point.lat, point.lng] as [number, number]
+  );
+  const tileUrl =
+    theme === "dark"
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+      : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const attribution =
+    theme === "dark"
+      ? '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 
   return (
     <div
-      className={
+      className={cn(
         className ??
-        "relative h-72 w-full overflow-hidden rounded-xl border bg-muted"
+          "relative h-72 w-full overflow-hidden rounded-lg border bg-muted",
+        theme === "dark" && "merhaal-map-dark"
+      )}
+      aria-label={
+        language === "ar" ? "خريطة أنشطة اليوم" : "Day activities map"
       }
     >
       <MapContainer
@@ -114,35 +173,73 @@ export default function TripMap({ destination, activities = [], className }: Tri
         className="h-full w-full"
         style={{ zIndex: 0 }}
       >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <TileLayer key={theme} attribution={attribution} url={tileUrl} />
 
-        {points.map((point, index) => (
-          <Marker key={`${point.lat}-${point.lng}-${index}`} position={[point.lat, point.lng]}>
-            <Popup>
-              <div className="space-y-1.5 text-right" dir="rtl">
-                {point.time && (
-                  <p className="text-xs font-medium text-primary">{point.time}</p>
-                )}
-                <p className="text-sm font-semibold">{point.title}</p>
-                <p className="text-xs text-muted-foreground">{point.locationName}</p>
-                <a
-                  href={`https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground no-underline"
+        {routePositions.length > 1 && (
+          <Polyline
+            positions={routePositions}
+            pathOptions={{
+              color: theme === "dark" ? "#70c996" : "#237a45",
+              weight: 3,
+              opacity: 0.7,
+              dashArray: "6 8",
+            }}
+          />
+        )}
+
+        {points.map(point => {
+          const selected = point.activityId === activeActivityId;
+          return (
+            <Marker
+              key={point.activityId}
+              position={[point.lat, point.lng]}
+              icon={markerIcon(point.order, selected)}
+              eventHandlers={{
+                click: () => onSelectActivity?.(point.activityId),
+              }}
+              zIndexOffset={selected ? 1000 : 0}
+            >
+              <Popup>
+                <div
+                  className="min-w-44 space-y-1.5 text-start"
+                  dir={isRTL ? "rtl" : "ltr"}
                 >
-                  📍 افتح في Google Maps
-                </a>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+                  {(point.startTime || point.time) && (
+                    <p className="text-xs font-medium text-primary">
+                      {point.startTime || point.time}
+                    </p>
+                  )}
+                  <p className="text-sm font-semibold">{point.title}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {point.locationName}
+                  </p>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 inline-flex min-h-8 items-center rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground no-underline"
+                  >
+                    {language === "ar"
+                      ? "فتح في خرائط Google"
+                      : "Open in Google Maps"}
+                  </a>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
 
         <FitBounds points={points} center={center} />
+        <FocusActivity points={points} activeActivityId={activeActivityId} />
       </MapContainer>
+
+      {points.length > 1 && (
+        <div className="pointer-events-none absolute bottom-2 end-2 z-[400] rounded-md border bg-background/90 px-2 py-1 text-[10px] text-muted-foreground shadow-sm">
+          {language === "ar"
+            ? "الخط يوضح ترتيب التوقفات"
+            : "Line shows stop order"}
+        </div>
+      )}
     </div>
   );
 }

@@ -30,14 +30,14 @@ import {
   Sunset,
 } from "lucide-react";
 import { useLanguage } from "@/contexts/LanguageContext";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 // Lazy-load the map so Leaflet stays out of the main bundle.
 const TripMap = lazy(() => import("@/components/TripMap"));
 
 function MapLoadingFallback() {
   return (
-    <div className="relative h-72 w-full overflow-hidden bg-muted/40">
+    <div className="relative h-64 w-full overflow-hidden bg-muted/40 sm:h-72 lg:h-[340px]">
       <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-muted/30 via-muted/50 to-muted/30" />
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="h-7 w-7 animate-spin rounded-full border-2 border-muted-foreground/20 border-t-primary" />
@@ -101,11 +101,31 @@ function requiresAdvanceBooking(place: DestinationPlace): boolean {
   );
 }
 
-function getPlaceTags(place: DestinationPlace | null): string[] {
+const CATEGORY_LABELS: Record<TripActivity["activityType"], { ar: string; en: string }> = {
+  heritage: { ar: "تراث", en: "Heritage" },
+  modern: { ar: "حديث", en: "Modern" },
+  dining: { ar: "مطعم", en: "Dining" },
+  cafe: { ar: "مقهى", en: "Cafe" },
+  nature: { ar: "طبيعة", en: "Nature" },
+  entertainment: { ar: "ترفيه", en: "Entertainment" },
+  shopping: { ar: "تسوق", en: "Shopping" },
+  family: { ar: "عائلي", en: "Family" },
+  adventure: { ar: "مغامرة", en: "Adventure" },
+  luxury: { ar: "فاخر", en: "Luxury" },
+};
+
+function localizedTime(time: string, language: "ar" | "en"): string {
+  if (language === "ar") return time;
+  if (time === "الصباح") return "Morning";
+  if (time === "الظهر") return "Afternoon";
+  return "Evening";
+}
+
+function getPlaceTags(place: DestinationPlace | null, language: "ar" | "en"): string[] {
   if (!place) return [];
   const tags: string[] = [];
-  if (isLuxuryPlace(place)) tags.push("✨ فاخر");
-  if (requiresAdvanceBooking(place)) tags.push("🎟️ يتطلب حجز مسبق");
+  if (isLuxuryPlace(place)) tags.push(language === "ar" ? "فاخر" : "Luxury");
+  if (requiresAdvanceBooking(place)) tags.push(language === "ar" ? "حجز مسبق" : "Book ahead");
   return tags;
 }
 
@@ -113,13 +133,19 @@ function ActivityTimelineItem({
   activity,
   destination,
   isLast,
+  selected,
+  onSelect,
+  language,
 }: {
   activity: TripActivity;
   destination: string;
   isLast: boolean;
+  selected: boolean;
+  onSelect: () => void;
+  language: "ar" | "en";
 }) {
   const place = lookupPlace(activity.locationName, destination);
-  const placeTags = getPlaceTags(place);
+  const placeTags = getPlaceTags(place, language);
   const mapsQuery = place?.mapSearchQuery || activity.locationName || activity.title;
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
     mapsQuery
@@ -130,18 +156,23 @@ function ActivityTimelineItem({
     : null;
 
   return (
-    <div className="relative flex gap-4 pb-8 last:pb-0 print:break-inside-avoid print:pb-4" data-testid={`activity-${activity.title}`}>
+    <div
+      className="relative flex gap-3 pb-4 last:pb-0 print:break-inside-avoid print:pb-4"
+      data-testid={`activity-${activity.title}`}
+      onClick={onSelect}
+    >
       {!isLast && (
         <span
-          className="absolute top-12 bottom-0 w-px bg-gradient-to-b from-primary/30 via-border to-transparent print:hidden"
-          style={{ insetInlineStart: "1.125rem" }}
+          className="absolute bottom-0 top-10 w-px bg-border print:hidden"
+          style={{ insetInlineStart: "1rem" }}
           aria-hidden
         />
       )}
 
       <div
         className={cn(
-          "relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/40 bg-white/70 shadow-md shadow-black/5 backdrop-blur-md dark:border-white/10 dark:bg-white/10",
+          "relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border bg-background shadow-sm",
+          selected && "border-primary bg-primary/10 ring-4 ring-primary/10",
           "print:border-gray-200 print:bg-white print:shadow-none print:backdrop-blur-none"
         )}
       >
@@ -150,20 +181,21 @@ function ActivityTimelineItem({
 
       <div
         className={cn(
-          "relative flex-1 min-w-0 overflow-hidden rounded-2xl border border-white/30 bg-gradient-to-br from-white/75 via-white/55 to-white/35 p-5 shadow-lg shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-transparent dark:shadow-black/20",
-          "print:break-inside-avoid print:rounded-xl print:border-gray-200 print:bg-white print:from-white print:via-white print:to-white print:shadow-none print:text-black print:backdrop-blur-none dark:print:from-white dark:print:via-white dark:print:to-white"
+          "relative min-w-0 flex-1 overflow-hidden rounded-lg border bg-card p-4 text-start shadow-sm transition-[border-color,box-shadow,transform] hover:border-primary/35",
+          selected && "border-primary/60 shadow-md ring-1 ring-primary/15",
+          "print:break-inside-avoid print:border-gray-200 print:bg-white print:shadow-none print:text-black"
         )}
       >
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b opacity-80 print:h-16 print:opacity-100",
+            "pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b opacity-60 print:h-12",
             timeAccentClass(activity.time)
           )}
           aria-hidden
         />
 
         <div className="relative print:text-black">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
+          <div className="mb-2.5 flex flex-wrap items-center gap-1.5">
             <Badge
               variant="outline"
               className={cn(
@@ -171,7 +203,7 @@ function ActivityTimelineItem({
                 timeBadgeClass(activity.time)
               )}
             >
-              {activity.time}
+              {localizedTime(activity.time, language)}
             </Badge>
             {activity.startTime && activity.endTime && (
               <Badge
@@ -182,6 +214,9 @@ function ActivityTimelineItem({
                 {activity.startTime} – {activity.endTime}
               </Badge>
             )}
+            <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+              {CATEGORY_LABELS[activity.activityType]?.[language] ?? activity.activityType}
+            </Badge>
           </div>
 
           <h4 className="text-[1.05rem] font-semibold leading-snug tracking-tight text-foreground print:text-black">
@@ -189,7 +224,7 @@ function ActivityTimelineItem({
           </h4>
 
           {activity.description && (
-            <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground/90 print:text-gray-700">
+            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-muted-foreground print:text-gray-700">
               {activity.description}
             </p>
           )}
@@ -197,12 +232,12 @@ function ActivityTimelineItem({
           {activity.reason && (
             <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-primary/90 print:text-gray-700">
               <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              <span>{activity.reason}</span>
+              <span className="line-clamp-2">{activity.reason}</span>
             </p>
           )}
 
           {activity.locationName && (
-            <div className="mt-4 space-y-2.5">
+            <div className="mt-3 space-y-2">
               <div className="flex items-start gap-2 text-sm font-medium text-foreground/90 print:text-black">
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary print:text-gray-700" />
                 <span className="leading-snug">{activity.locationName}</span>
@@ -231,7 +266,7 @@ function ActivityTimelineItem({
             >
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer">
                 <MapPin className="w-3.5 h-3.5" />
-                فتح في خرائط Google
+                {language === "ar" ? "فتح في الخريطة" : "Open map"}
                 <ExternalLink className="w-3 h-3 opacity-70" />
               </a>
             </Button>
@@ -245,7 +280,7 @@ function ActivityTimelineItem({
               >
                 <a href={bookingUrl} target="_blank" rel="noopener noreferrer">
                   <Search className="w-3.5 h-3.5" />
-                  ابحث عن الحجز
+                  {language === "ar" ? "ابحث عن الحجز" : "Search booking"}
                   <ExternalLink className="w-3 h-3 opacity-60" />
                 </a>
               </Button>
@@ -264,22 +299,47 @@ interface SavedTripItineraryProps {
 }
 
 export function SavedTripItinerary({ days, destination, hotel }: SavedTripItineraryProps) {
+  const { language, isRTL } = useLanguage();
+  const [activeDayNumber, setActiveDayNumber] = useState(days?.[0]?.dayNumber ?? 1);
+  const activeDay = days?.find((day) => day.dayNumber === activeDayNumber) ?? days?.[0];
+  const [selectedActivityId, setSelectedActivityId] = useState(
+    activeDay?.activities?.[0]?.id
+  );
+
+  useEffect(() => {
+    setSelectedActivityId(activeDay?.activities?.[0]?.id);
+  }, [activeDayNumber, activeDay?.activities]);
+
   if (!days?.length) {
     return (
       <Card className="border-dashed">
         <CardContent className="py-12 text-center text-muted-foreground text-sm">
-          لا توجد أنشطة في هذه الخطة بعد.
+          {language === "ar" ? "لا توجد أنشطة في هذه الخطة بعد." : "This trip has no activities yet."}
         </CardContent>
       </Card>
     );
   }
 
-  const allActivities = days.flatMap((day) => day.activities ?? []);
+  if (!activeDay) return null;
+
+  const dayLabel = (day: TripDay) =>
+    language === "ar" ? getArabicDayLabel(day.dayNumber) : `Day ${day.dayNumber}`;
+  const activityCountLabel = (count: number) =>
+    language === "ar"
+      ? `${count} ${count === 1 ? "نشاط" : "أنشطة"}`
+      : `${count} ${count === 1 ? "activity" : "activities"}`;
 
   return (
-    <div className="space-y-6 print:space-y-4 print:text-black">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h2 className="text-lg font-bold print:text-xl">برنامج الرحلة اليومي</h2>
+    <div className="space-y-5 print:space-y-4 print:text-black" dir={isRTL ? "rtl" : "ltr"}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-bold print:text-xl">
+            {language === "ar" ? "برنامج الرحلة" : "Trip itinerary"}
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {language === "ar" ? "اختر يومًا لرؤية مساره وتوقفاته" : "Choose a day to see its route and stops"}
+          </p>
+        </div>
         <Button
           variant="outline"
           size="sm"
@@ -288,73 +348,107 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
           data-testid="button-export-pdf"
         >
           <Printer className="w-4 h-4" />
-          تصدير الخطة كـ PDF
+          {language === "ar" ? "طباعة الخطة" : "Print plan"}
         </Button>
       </div>
 
-      <Card className="overflow-hidden print:hidden">
-        <CardHeader className="py-3 border-b">
-          <CardTitle className="text-base font-bold flex items-center gap-2">
-            <MapPin className="w-4 h-4 text-primary" />
-            خريطة الوجهة
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Suspense fallback={<MapLoadingFallback />}>
-            <TripMap
-              destination={destination}
-              activities={allActivities}
-              className="h-72 w-full"
-            />
-          </Suspense>
-        </CardContent>
-      </Card>
-
-      <HotelRecommendationCard hotel={hotel} destination={destination} />
-
-      {days.map((day) => (
-        <Card
-          key={day.dayNumber}
-          className="overflow-hidden border-white/30 bg-gradient-to-br from-white/60 via-white/40 to-white/20 shadow-xl shadow-black/[0.04] backdrop-blur-xl dark:border-white/10 dark:from-white/[0.06] dark:via-white/[0.03] dark:to-transparent print:break-inside-avoid print:border-gray-200 print:bg-white print:from-white print:via-white print:to-white print:shadow-none print:backdrop-blur-none dark:print:from-white dark:print:via-white dark:print:to-white"
-          data-testid={`day-${day.dayNumber}`}
-        >
-          <CardHeader className="border-b border-white/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent py-4 backdrop-blur-sm dark:border-white/10 print:border-gray-200 print:bg-gray-50 print:backdrop-blur-none">
-            <CardTitle className="flex items-center justify-between gap-2 text-base font-bold tracking-tight print:text-black">
-              <span>{day.title || getArabicDayLabel(day.dayNumber)}</span>
-              <Badge
-                variant="secondary"
-                className="border-white/30 bg-white/50 font-normal backdrop-blur-sm dark:border-white/10 dark:bg-white/10 print:border-gray-200 print:bg-white print:text-black print:backdrop-blur-none"
+      <div className="sticky top-[calc(env(safe-area-inset-top)+3.5rem)] z-30 -mx-4 border-y bg-background/95 px-4 py-2 backdrop-blur-xl md:static md:mx-0 md:rounded-lg md:border">
+        <div className="flex gap-2 overflow-x-auto hide-scrollbar" role="tablist" aria-label={language === "ar" ? "أيام الرحلة" : "Trip days"}>
+          {days.map((day) => {
+            const active = day.dayNumber === activeDay.dayNumber;
+            return (
+              <button
+                key={day.dayNumber}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveDayNumber(day.dayNumber)}
+                className={cn(
+                  "min-h-11 shrink-0 rounded-lg border px-4 text-start transition-colors",
+                  active
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border bg-background text-muted-foreground hover:border-primary/40"
+                )}
+                data-testid={`button-day-${day.dayNumber}`}
               >
-                {day.activities?.length ?? 0}{" "}
-                {(day.activities?.length ?? 0) === 1 ? "نشاط" : "أنشطة"}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="bg-white/20 pt-6 backdrop-blur-sm dark:bg-transparent print:bg-white print:pt-4 print:backdrop-blur-none">
-            {day.description && (
-              <p className="mb-5 text-sm leading-relaxed text-muted-foreground print:text-gray-700">
-                {day.description}
-              </p>
-            )}
-            {day.activities?.length ? (
-              <div>
-                {day.activities.map((activity, index) => (
-                  <ActivityTimelineItem
-                    key={`${day.dayNumber}-${index}`}
-                    activity={activity}
-                    destination={destination}
-                    isLast={index === day.activities.length - 1}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                لا توجد أنشطة لهذا اليوم
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      ))}
+                <span className="block text-sm font-semibold">{dayLabel(day)}</span>
+                {day.date && <span className="block text-[10px] opacity-75">{day.date}</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="order-2 min-w-0 lg:order-1" data-testid={`day-${activeDay.dayNumber}`}>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="truncate text-base font-bold">
+                {activeDay.title || dayLabel(activeDay)}
+              </h3>
+              {activeDay.description && (
+                <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                  {activeDay.description}
+                </p>
+              )}
+            </div>
+            <Badge variant="secondary" className="shrink-0 font-normal">
+              {activityCountLabel(activeDay.activities?.length ?? 0)}
+            </Badge>
+          </div>
+
+          {activeDay.activities?.length ? (
+            <div>
+              {activeDay.activities.map((activity, index) => (
+                <ActivityTimelineItem
+                  key={activity.id}
+                  activity={activity}
+                  destination={destination}
+                  isLast={index === activeDay.activities.length - 1}
+                  selected={selectedActivityId === activity.id}
+                  onSelect={() => setSelectedActivityId(activity.id)}
+                  language={language}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+              {language === "ar" ? "لا توجد أنشطة لهذا اليوم" : "No activities for this day"}
+            </p>
+          )}
+        </section>
+
+        <aside className="order-1 space-y-4 lg:sticky lg:top-20 lg:order-2 print:hidden">
+          <section className="overflow-hidden rounded-lg border bg-card shadow-sm">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <h3 className="flex items-center gap-2 text-sm font-semibold">
+                <MapPin className="h-4 w-4 text-primary" />
+                {language === "ar" ? `مسار ${dayLabel(activeDay)}` : `${dayLabel(activeDay)} route`}
+              </h3>
+              <span className="text-[10px] text-muted-foreground">
+                {activityCountLabel(activeDay.activities?.length ?? 0)}
+              </span>
+            </div>
+            <Suspense fallback={<MapLoadingFallback />}>
+              <TripMap
+                destination={destination}
+                activities={activeDay.activities}
+                activeActivityId={selectedActivityId}
+                onSelectActivity={setSelectedActivityId}
+                className="h-64 w-full sm:h-72 lg:h-[340px]"
+              />
+            </Suspense>
+          </section>
+
+          <div className="hidden lg:block">
+            <HotelRecommendationCard hotel={hotel} destination={destination} />
+          </div>
+        </aside>
+
+        <div className="order-3 lg:hidden">
+          <HotelRecommendationCard hotel={hotel} destination={destination} />
+        </div>
+      </div>
     </div>
   );
 }

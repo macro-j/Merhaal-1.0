@@ -1,22 +1,31 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Layout from "@/components/Layout";
-import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
+import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import PlanTrip from "./pages/PlanTrip";
-import About from "./pages/About";
-import Guides from "./pages/Guides";
-import Support from "./pages/Support";
-import Packages from "./pages/Packages";
-import MyPlans from "./pages/MyPlans";
-import TripDetails from "./pages/TripDetails";
-import SharedTrip from "./pages/SharedTrip";
-import Favorites from "./pages/Favorites";
+const Home = lazy(() => import("./pages/Home"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const PlanTrip = lazy(() => import("./pages/PlanTrip"));
+const About = lazy(() => import("./pages/About"));
+const Guides = lazy(() => import("./pages/Guides"));
+const Support = lazy(() => import("./pages/Support"));
+const Packages = lazy(() => import("./pages/Packages"));
+const MyPlans = lazy(() => import("./pages/MyPlans"));
+const TripDetails = lazy(() => import("./pages/TripDetails"));
+const SharedTrip = lazy(() => import("./pages/SharedTrip"));
+const Favorites = lazy(() => import("./pages/Favorites"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+function RouteLoading() {
+  return (
+    <div className="container mx-auto flex min-h-[55vh] max-w-5xl items-center justify-center px-4 pt-20">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
 
 function Router() {
   return (
@@ -46,7 +55,9 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <Layout>
-              <Router />
+              <Suspense fallback={<RouteLoading />}>
+                <Router />
+              </Suspense>
             </Layout>
           </TooltipProvider>
         </ThemeProvider>

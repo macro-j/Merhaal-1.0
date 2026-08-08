@@ -150,6 +150,42 @@
     -ms-overflow-style: none;
   }
 
+  .merhaal-map-marker-shell {
+    background: transparent;
+    border: 0;
+  }
+
+  .merhaal-map-marker {
+    display: flex;
+    width: 30px;
+    height: 30px;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    border-radius: 999px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 24%);
+    transition: width 160ms ease, height 160ms ease, transform 160ms ease;
+  }
+
+  .merhaal-map-marker.is-selected {
+    width: 36px;
+    height: 36px;
+    transform: translate(-3px, -3px);
+    border-width: 3px;
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary) 24%, transparent), 0 4px 14px rgb(0 0 0 / 30%);
+  }
+
+  .dark .leaflet-control-zoom a,
+  .dark .leaflet-popup-content-wrapper,
+  .dark .leaflet-popup-tip {
+    background: var(--card);
+    color: var(--card-foreground);
+  }
+
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
   [type="button"]:not(:disabled),

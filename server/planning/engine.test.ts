@@ -121,22 +121,45 @@ describe("Planning Engine v1.1", () => {
     }
   });
 
-  it("builds a grounded one-day Jeddah plan when its luxury food coverage is sufficient", () => {
-    const { plan, context } = build({
+  it("rejects a one-day Jeddah plan instead of treating a verified cafe as a meal", () => {
+    expectInsufficient({
       destination: "جدة",
       budgetTier: "فاخرة",
       totalBudgetSAR: 6000,
       interests: ["استرخاء وطبيعة"],
     });
-    const result = validatePlan(plan, context);
-    expect(result.valid, result.errors.join("\n")).toBe(true);
-    expect(plan.days[0].activities.filter((activity) => activity.mealSlot)).toHaveLength(2);
-    expect(plan.days[0].activities.some((activity) => activity.mealSlot === "قهوة")).toBe(false);
   });
 
   it("reports the exact Jeddah food shortage for two and three days", () => {
     expectInsufficient({ destination: "جدة", durationDays: 2, budgetTier: "فاخرة", totalBudgetSAR: 12000 });
     expectInsufficient({ destination: "جدة", durationDays: 3, budgetTier: "فاخرة", totalBudgetSAR: 18000 });
+  });
+
+  it("keeps the reviewed Riyadh and Jeddah coverage matrix explicit", () => {
+    const matrix = [
+      { destination: "الرياض", budgetTier: "اقتصادية", expected: [false, false, false] },
+      { destination: "الرياض", budgetTier: "متوسطة", expected: [true, true, true] },
+      { destination: "الرياض", budgetTier: "فاخرة", expected: [true, true, true] },
+      { destination: "جدة", budgetTier: "اقتصادية", expected: [false, false, false] },
+      { destination: "جدة", budgetTier: "متوسطة", expected: [false, false, false] },
+      { destination: "جدة", budgetTier: "فاخرة", expected: [false, false, false] },
+    ] as const;
+
+    for (const row of matrix) {
+      row.expected.forEach((expected, index) => {
+        const request = {
+          destination: row.destination,
+          budgetTier: row.budgetTier,
+          durationDays: index + 1,
+          totalBudgetSAR: row.budgetTier === "فاخرة" ? 18000 : row.budgetTier === "متوسطة" ? 5400 : 1500,
+        } satisfies Partial<GenerateTripParams>;
+        if (expected) {
+          expect(() => build(request)).not.toThrow();
+        } else {
+          expectInsufficient(request);
+        }
+      });
+    }
   });
 
   it("rejects trips longer than the current three-day product scope", () => {

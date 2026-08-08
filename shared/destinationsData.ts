@@ -94,7 +94,9 @@ type DestinationPlaceSeed = Omit<
   | "localAuthenticityScore"
   | "trendScore"
   | "priorityScore"
->;
+> & {
+  verifiedMealSlots?: Exclude<MealSlot, "لا ينطبق">[];
+};
 
 export type LatLng = {
   lat: number;
@@ -144,6 +146,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "مطل البجيري",
       englishName: "Bujairi Terrace, Diriyah",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Diriyah",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["midRange", "luxury"],
@@ -208,6 +211,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "مطعم سهيل الرياض",
       englishName: "Suhail Restaurant, Riyadh",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Northern Riyadh",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["luxury"],
@@ -224,6 +228,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "ميازو الرياض",
       englishName: "Myazu Riyadh",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Al Olaya",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["luxury"],
@@ -288,6 +293,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "مقهى آش تريز",
       englishName: "Ash Trees Cafe, Riyadh",
       category: "cafe",
+      verifiedMealSlots: ["قهوة"],
       area: "Hittin",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["midRange", "luxury"],
@@ -304,6 +310,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "وودز كافيه",
       englishName: "Woods Cafe, Riyadh",
       category: "cafe",
+      verifiedMealSlots: ["قهوة"],
       area: "Al Yasmin",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["midRange", "luxury"],
@@ -320,6 +327,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "كويارد كوفي",
       englishName: "Coyard Coffee, Riyadh",
       category: "cafe",
+      verifiedMealSlots: ["قهوة"],
       area: "Al Olaya",
       recommendedTime: ["morning", "afternoon"],
       budgetLevel: ["midRange", "luxury"],
@@ -336,6 +344,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "إيلان كافيه",
       englishName: "Elan Cafe, Riyadh",
       category: "cafe",
+      verifiedMealSlots: ["قهوة"],
       area: "Northern Riyadh",
       recommendedTime: ["afternoon", "evening"],
       budgetLevel: ["midRange", "luxury"],
@@ -352,6 +361,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "ساين برجر",
       englishName: "Sign Burger, Riyadh",
       category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
       area: "Al Olaya",
       recommendedTime: ["afternoon", "evening", "night"],
       budgetLevel: ["budget", "midRange"],
@@ -368,6 +378,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "سان كارلو تشيكيتي",
       englishName: "San Carlo Cicchetti, Riyadh",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Northern Riyadh",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["luxury"],
@@ -384,8 +395,9 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "اي او كي كيتشن",
       englishName: "AOK Kitchen, Riyadh",
       category: "dining",
+      verifiedMealSlots: ["فطور", "غداء"],
       area: "Northern Riyadh",
-      recommendedTime: ["morning", "afternoon", "evening"],
+      recommendedTime: ["morning", "afternoon"],
       budgetLevel: ["midRange", "luxury"],
       bestFor: ["friends", "couples", "families"],
       interests: ["food", "restaurants", "relaxation"],
@@ -400,6 +412,7 @@ const RIYADH: DestinationKnowledgeSeed = {
       arabicName: "سموكي بيردز",
       englishName: "Smokey Beards Q, Riyadh",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Al Olaya",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["midRange", "luxury"],
@@ -490,6 +503,7 @@ const JEDDAH: DestinationKnowledgeSeed = {
       arabicName: "مطعم خيال جدة",
       englishName: "Khayal Restaurant, Jeddah",
       category: "dining",
+      verifiedMealSlots: ["عشاء"],
       area: "Northern Jeddah",
       recommendedTime: ["evening", "night"],
       budgetLevel: ["luxury"],
@@ -505,7 +519,8 @@ const JEDDAH: DestinationKnowledgeSeed = {
       name: "Angelina Jeddah",
       arabicName: "أنجلينا جدة",
       englishName: "Angelina, Jeddah",
-      category: "dining",
+      category: "cafe",
+      verifiedMealSlots: ["قهوة"],
       area: "Jeddah Waterfront / Mall",
       recommendedTime: ["afternoon", "evening"],
       budgetLevel: ["midRange", "luxury"],
@@ -987,6 +1002,7 @@ function clampScore(value: number): number {
 }
 
 function getMealSlots(place: DestinationPlaceSeed): MealSlot[] {
+  if (place.verifiedMealSlots?.length) return place.verifiedMealSlots;
   if (place.category === "cafe") return ["قهوة"];
   if (place.category === "dining") {
     if (place.recommendedTime.includes("morning")) return ["فطور", "غداء", "عشاء"];
@@ -1050,6 +1066,7 @@ function getPriorityScore(place: DestinationPlaceSeed): number {
 }
 
 function enrichPlace(place: DestinationPlaceSeed): DestinationPlace {
+  const { verifiedMealSlots: _verifiedMealSlots, ...basePlace } = place;
   const luxuryScore = clampScore(
     (place.budgetLevel.includes("luxury") ? 7 : 3) +
       (place.category === "luxury" || place.category === "dining" ? 2 : 0)
@@ -1068,7 +1085,7 @@ function enrichPlace(place: DestinationPlaceSeed): DestinationPlace {
   );
 
   return {
-    ...place,
+    ...basePlace,
     coordinates: PLACE_COORDINATES[place.id],
     mealSlot: getMealSlots(place),
     placeRole: getPlaceRoles(place),

@@ -121,4 +121,51 @@ describe("knowledge base integrity", () => {
       }
     }
   });
+
+  it("keeps Riyadh and Jeddah identifiers and classification arrays duplicate-free", () => {
+    const reviewed = DESTINATIONS_KNOWLEDGE.filter((destination) =>
+      ["Riyadh", "Jeddah"].includes(destination.canonicalName)
+    );
+    const ids = reviewed.flatMap((destination) => destination.places.map((place) => place.id));
+    expect(new Set(ids).size).toBe(ids.length);
+
+    for (const destination of reviewed) {
+      for (const place of destination.places) {
+        for (const values of [
+          place.recommendedTime,
+          place.budgetLevel,
+          place.bestFor,
+          place.interests,
+          place.mealSlot,
+        ]) {
+          expect(new Set(values).size, `${place.id} contains duplicate values`).toBe(values.length);
+        }
+        expect(place.planningNotes.trim().length, `${place.id} missing planning notes`).toBeGreaterThan(10);
+        expect(place.priorityScore).toBeGreaterThanOrEqual(1);
+        expect(place.priorityScore).toBeLessThanOrEqual(100);
+        for (const score of [
+          place.localAuthenticityScore,
+          place.familyFriendlyScore,
+          place.luxuryScore,
+          place.trendScore,
+        ]) {
+          expect(score).toBeGreaterThanOrEqual(1);
+          expect(score).toBeLessThanOrEqual(10);
+        }
+      }
+    }
+  });
+
+  it("uses the food roles explicitly supported by the current Riyadh and Jeddah notes", () => {
+    const riyadh = resolveDestination("الرياض")!;
+    const jeddah = resolveDestination("جدة")!;
+    expect(riyadh.places.find((place) => place.id === "riyadh-aok-kitchen")?.mealSlot)
+      .toEqual(["فطور", "غداء"]);
+    expect(riyadh.places.find((place) => place.id === "riyadh-aok-kitchen")?.recommendedTime)
+      .toEqual(["morning", "afternoon"]);
+    expect(jeddah.places.find((place) => place.id === "jeddah-angelina")).toMatchObject({
+      category: "cafe",
+      mealSlot: ["قهوة"],
+    });
+  });
 });

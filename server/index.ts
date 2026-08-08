@@ -4,13 +4,22 @@ import express from "express";
 import "dotenv/config";
 import { createApp } from "./app";
 
-const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const rootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  ".."
+);
 const app = createApp();
+
+console.log(
+  `[Startup] mode=${process.env.NODE_ENV ?? "development"} groq=${process.env.GROQ_API_KEY?.trim() ? "configured" : "missing"}`
+);
 
 if (process.env.NODE_ENV === "production") {
   const publicDir = path.join(rootDir, "dist", "public");
   app.use(express.static(publicDir));
-  app.use((_request, response) => response.sendFile(path.join(publicDir, "index.html")));
+  app.use((_request, response) =>
+    response.sendFile(path.join(publicDir, "index.html"))
+  );
 } else {
   const { createServer: createViteServer } = await import("vite");
   const vite = await createViteServer({

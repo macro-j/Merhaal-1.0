@@ -23,6 +23,7 @@ import {
   Gem,
   Coins,
   Scale,
+  Users,
 } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useLocation } from "wouter";
@@ -110,6 +111,7 @@ export default function PlanTrip() {
         titleEn: dest.subtitleEn,
         descriptionAr: dest.description,
         descriptionEn: dest.descriptionEn,
+        status: dest.status,
       })),
     []
   );
@@ -123,7 +125,7 @@ export default function PlanTrip() {
   const [days, setDays] = useState(1);
   const [totalBudgetSAR, setTotalBudgetSAR] = useState(3000);
   const [budgetTier, setBudgetTier] = useState<ArabicBudgetTier>("متوسطة");
-  const [mealsPerDay, setMealsPerDay] = useState<2 | 3>(2);
+  const [travelerCount, setTravelerCount] = useState(1);
   const [interests, setInterests] = useState<TripMood[]>([]);
   const [msgIndex, setMsgIndex] = useState(0);
   const [showLoading, setShowLoading] = useState(false);
@@ -203,7 +205,7 @@ export default function PlanTrip() {
       case 3:
         return Boolean(budgetTier);
       case 4:
-        return true;
+        return interests.length > 0;
       case 5:
         return true;
       default:
@@ -217,6 +219,7 @@ export default function PlanTrip() {
         1: { ar: "الرجاء اختيار وجهة", en: "Please select a destination" },
         2: { ar: "الرجاء تحديد تاريخ البداية وعدد الأيام", en: "Please set start date and days" },
         3: { ar: "الرجاء اختيار نمط الرحلة", en: "Please choose a trip style" },
+        4: { ar: "الرجاء اختيار اهتمام واحد على الأقل", en: "Please choose at least one interest" },
       };
       const msg = msgs[step];
       if (msg) toast.error(language === "ar" ? msg.ar : msg.en);
@@ -248,7 +251,7 @@ export default function PlanTrip() {
         budgetTier,
         totalBudgetSAR,
         accommodationType: budgetTier,
-        mealsPerDay,
+        travelerCount,
         interests,
         language,
         startDate: toISODateString(startDate) || undefined,
@@ -256,11 +259,10 @@ export default function PlanTrip() {
 
       const savedTrip = {
         ...plan,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
+        createdAt: plan.metadata.generatedAt,
         budgetTier,
         totalBudgetSAR,
-        mealsPerDay,
+        travelerCount,
         interests,
         startDate: toISODateString(startDate) || undefined,
         dayCount: days,
@@ -338,8 +340,11 @@ export default function PlanTrip() {
             {destinations?.map((dest) => (
               <div
                 key={dest.id}
-                onClick={() => setSelectedDestination(dest.id)}
-                className={`relative cursor-pointer rounded-md overflow-visible border-2 transition-colors ${
+                onClick={() => dest.status === "active" && setSelectedDestination(dest.id)}
+                aria-disabled={dest.status !== "active"}
+                className={`relative rounded-md overflow-visible border-2 transition-colors ${
+                  dest.status === "active" ? "cursor-pointer" : "cursor-not-allowed opacity-70"
+                } ${
                   selectedDestination === dest.id
                     ? "border-primary"
                     : "border-border"
@@ -359,6 +364,11 @@ export default function PlanTrip() {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+                  {dest.status !== "active" && (
+                    <Badge className="absolute top-3 end-3 bg-background/90 text-foreground hover:bg-background/90">
+                      {language === "ar" ? "قريبًا" : "Coming Soon"}
+                    </Badge>
+                  )}
                   <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
                     <h3 className="text-lg font-bold">{getLocalizedName(dest.nameAr, dest.nameEn, language)}</h3>
                     <p className="text-sm text-gray-200">{getDestinationSubtitle(dest, language)}</p>
@@ -372,7 +382,7 @@ export default function PlanTrip() {
     </Card>
   );
 
-  const dayChips = [1, 2, 3, 4, 5, 7];
+  const dayChips = [1, 2, 3];
 
   const renderStep2 = () => (
     <Card>
@@ -445,6 +455,9 @@ export default function PlanTrip() {
               );
             })}
           </div>
+          <p className="text-xs text-muted-foreground">
+            {language === "ar" ? "الرحلات الأطول ستكون متاحة قريبًا." : "Longer trips are coming soon."}
+          </p>
         </div>
 
         {(startDate || days >= 1) && (
@@ -518,33 +531,27 @@ export default function PlanTrip() {
         </div>
 
         <div className="space-y-2">
-          <Label>{language === "ar" ? "عدد الوجبات يومياً" : "Meals per day"}</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {([2, 3] as const).map((count) => {
-              const isActive = mealsPerDay === count;
-              return (
-                <button
-                  key={count}
-                  type="button"
-                  onClick={() => setMealsPerDay(count)}
-                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-all ${
-                    isActive
-                      ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/20"
-                      : "border-border hover:border-primary/40 hover:bg-muted/40"
-                  }`}
-                  data-testid={`button-meals-${count}`}
-                >
-                  {count === 2
-                    ? language === "ar"
-                      ? "وجبتان"
-                      : "2 meals"
-                    : language === "ar"
-                      ? "3 وجبات"
-                      : "3 meals"}
-                </button>
-              );
-            })}
+          <Label htmlFor="travelerCount">
+            {language === "ar" ? "عدد المسافرين" : "Number of travelers"}
+          </Label>
+          <div className="relative">
+            <Users className="pointer-events-none absolute top-1/2 start-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="travelerCount"
+              type="number"
+              min="1"
+              max="12"
+              value={travelerCount}
+              onChange={(event) => setTravelerCount(Math.min(12, Math.max(1, Number(event.target.value) || 1)))}
+              data-testid="input-traveler-count"
+              className="h-12 rounded-xl ps-11 text-base"
+            />
           </div>
+          <p className="text-xs text-muted-foreground">
+            {language === "ar"
+              ? `ميزانية تقريبية للفرد: ${Math.round(totalBudgetSAR / travelerCount).toLocaleString("ar-SA")} ريال`
+              : `Approximate budget per traveler: ${Math.round(totalBudgetSAR / travelerCount).toLocaleString("en-US")} SAR`}
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -724,20 +731,12 @@ export default function PlanTrip() {
             </div>
 
             <div className="flex items-start gap-3 py-2 border-b border-border">
-              <Scale className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
+              <Users className="w-4 h-4 mt-0.5 text-muted-foreground shrink-0" />
               <div>
                 <p className="text-xs text-muted-foreground">
-                  {language === "ar" ? "الوجبات يومياً" : "Meals Per Day"}
+                  {language === "ar" ? "عدد المسافرين" : "Travelers"}
                 </p>
-                <p className="font-medium">
-                  {mealsPerDay === 2
-                    ? language === "ar"
-                      ? "وجبتان"
-                      : "2 meals"
-                    : language === "ar"
-                      ? "3 وجبات"
-                      : "3 meals"}
-                </p>
+                <p className="font-medium">{travelerCount}</p>
               </div>
             </div>
 

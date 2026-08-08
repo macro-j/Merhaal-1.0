@@ -24,6 +24,10 @@ VITE_APP_LOGO=/logo.png
 # Server Configuration
 PORT=3000
 NODE_ENV=production
+
+# Server-side trip copywriting (never prefix this with VITE_)
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=llama-3.3-70b-versatile
 ```
 
 **Note:** When deploying on Manus platform, most environment variables are auto-configured. For standalone deployment, you need to set DATABASE_URL and JWT_SECRET manually.

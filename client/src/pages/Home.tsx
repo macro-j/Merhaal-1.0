@@ -174,6 +174,7 @@ export default function Home() {
       destinationsTitle: 'اختر وجهتك',
       destinationsSubtitle: 'مدن تستحق الزيارة',
       explore: 'اكتشف',
+      comingSoon: 'قريبًا',
       featuresTitle: 'مميزات مرحال',
       ctaSection: {
         title: 'جاهز للانطلاق؟',
@@ -192,6 +193,7 @@ export default function Home() {
       destinationsTitle: 'Top Destinations',
       destinationsSubtitle: 'Beautiful cities await you',
       explore: 'Explore',
+      comingSoon: 'Coming Soon',
       featuresTitle: 'Why Merhaal?',
       ctaSection: {
         title: 'Ready to Go?',
@@ -262,8 +264,9 @@ export default function Home() {
             {destinations.map((dest, index) => (
               <button
                 key={index}
-                onClick={() => setSelectedDestination(dest)}
-                className="relative w-full rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 text-start"
+                onClick={() => dest.status === 'active' && setSelectedDestination(dest)}
+                disabled={dest.status !== 'active'}
+                className="relative w-full rounded-xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 text-start disabled:cursor-not-allowed"
                 data-testid={`button-destination-mobile-${index}`}
               >
                 <div className="aspect-[16/9] relative">
@@ -277,6 +280,11 @@ export default function Home() {
                     }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent"></div>
+                  {dest.status !== 'active' && (
+                    <span className="absolute top-3 end-3 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold text-foreground shadow-sm backdrop-blur-sm">
+                      {t.comingSoon}
+                    </span>
+                  )}
                   <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
                     <h3 className="text-lg font-semibold mb-0.5">
                       {getLocalizedName(dest.name, dest.nameEn, language)}
@@ -303,8 +311,9 @@ export default function Home() {
               {destinations.map((dest, index) => (
                 <button 
                   key={index}
-                  onClick={() => setSelectedDestination(dest)}
-                  className="group relative flex-shrink-0 w-[320px] lg:w-[340px] snap-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-2xl card-hover"
+                  onClick={() => dest.status === 'active' && setSelectedDestination(dest)}
+                  disabled={dest.status !== 'active'}
+                  className="group relative flex-shrink-0 w-[320px] lg:w-[340px] snap-center focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-2xl card-hover disabled:cursor-not-allowed"
                   data-testid={`button-destination-desktop-${index}`}
                 >
                   <div className="aspect-[4/5] relative overflow-hidden rounded-2xl">
@@ -318,6 +327,11 @@ export default function Home() {
                       }}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
+                    {dest.status !== 'active' && (
+                      <span className="absolute top-4 end-4 rounded-full bg-background/90 px-3 py-1 text-xs font-semibold text-foreground shadow-sm backdrop-blur-sm">
+                        {t.comingSoon}
+                      </span>
+                    )}
                     
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white text-start">
                       <h3 className="text-2xl font-semibold mb-1">
@@ -327,7 +341,7 @@ export default function Home() {
                         {getLocalizedName(dest.subtitle, dest.subtitleEn, language)}
                       </p>
                       <span className="inline-flex items-center justify-center h-11 px-6 bg-white/95 text-primary font-medium text-sm rounded-full shadow-sm group-hover:bg-white transition-colors">
-                        {t.explore}
+                        {dest.status === 'active' ? t.explore : t.comingSoon}
                       </span>
                     </div>
                   </div>

@@ -59,9 +59,9 @@ describe("Home Page", () => {
     expect(screen.getByTestId("text-features-title")).toBeDefined();
   });
 
-  it("renders navigation menu", () => {
+  it("renders the primary planning action", () => {
     renderWithProviders(<Home />);
-    expect(screen.getAllByText(/الرئيسية/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/خطط رحلة/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("button-hero-cta")).toBeDefined();
+    expect(screen.getByText(/ابدأ الآن/)).toBeDefined();
   });
 });

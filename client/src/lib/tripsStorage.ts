@@ -1,4 +1,4 @@
-import type { GeneratedTripPlan } from "@/lib/llm";
+import type { GeneratedTripPlan } from "@shared/tripTypes";
 
 export const TRIPS_STORAGE_KEY = "merhaal_trips";
 
@@ -7,6 +7,7 @@ export interface SavedTrip extends GeneratedTripPlan {
   createdAt: string;
   budgetTier: string;
   totalBudgetSAR?: number;
+  travelerCount?: number;
   mealsPerDay?: 2 | 3;
   interests: string[];
   startDate?: string;

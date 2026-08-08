@@ -7,7 +7,7 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from "@/components/ui/accordion";
-import type { TripActivity, TripDay, TripHotel } from "@/lib/llm";
+import type { TripActivity, TripDay, TripHotel } from "@shared/tripTypes";
 import {
   findKnowledgePlace,
   resolveDestination,
@@ -205,6 +205,13 @@ function ActivityTimelineItem({
             </p>
           )}
 
+          {activity.reason && (
+            <p className="mt-2 flex items-start gap-1.5 text-xs leading-relaxed text-primary/90 print:text-gray-700">
+              <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>{activity.reason}</span>
+            </p>
+          )}
+
           {activity.locationName && (
             <div className="mt-4 space-y-2.5">
               <div className="flex items-start gap-2 text-sm font-medium text-foreground/90 print:text-black">
@@ -352,7 +359,7 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
         >
           <CardHeader className="border-b border-white/20 bg-gradient-to-r from-primary/8 via-primary/5 to-transparent py-4 backdrop-blur-sm dark:border-white/10 print:border-gray-200 print:bg-gray-50 print:backdrop-blur-none">
             <CardTitle className="flex items-center justify-between gap-2 text-base font-bold tracking-tight print:text-black">
-              <span>{getArabicDayLabel(day.dayNumber)}</span>
+              <span>{day.title || getArabicDayLabel(day.dayNumber)}</span>
               <Badge
                 variant="secondary"
                 className="border-white/30 bg-white/50 font-normal backdrop-blur-sm dark:border-white/10 dark:bg-white/10 print:border-gray-200 print:bg-white print:text-black print:backdrop-blur-none"
@@ -363,6 +370,11 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
             </CardTitle>
           </CardHeader>
           <CardContent className="bg-white/20 pt-6 backdrop-blur-sm dark:bg-transparent print:bg-white print:pt-4 print:backdrop-blur-none">
+            {day.description && (
+              <p className="mb-5 text-sm leading-relaxed text-muted-foreground print:text-gray-700">
+                {day.description}
+              </p>
+            )}
             {day.activities?.length ? (
               <div>
                 {day.activities.map((activity, index) => (

@@ -8,6 +8,7 @@ export interface DestinationCatalogItem {
   description: string;
   descriptionEn: string;
   image: string;
+  status: 'active' | 'comingSoon';
 }
 
 export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
@@ -21,6 +22,7 @@ export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
     description: 'عاصمة تجمع بين التراث والحداثة مع أسواق عريقة ومتاحف وواجهات حديثة',
     descriptionEn: 'A capital that combines heritage and modernity with traditional markets, museums and modern facades',
     image: '/images/cities/riyadh-hero.jpg',
+    status: 'active',
   },
   {
     id: 'جدة',
@@ -32,6 +34,7 @@ export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
     description: 'مدينة ساحلية بموروث عريق مع كورنيش ساحر وتراث إسلامي',
     descriptionEn: 'A coastal city with rich heritage, charming corniche and Islamic heritage',
     image: '/images/cities/jeddah-hero.jpg',
+    status: 'active',
   },
   {
     id: 'الطائف',
@@ -43,6 +46,7 @@ export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
     description: 'مصيف الجزيرة العربية بجبالها الخضراء وأجوائها المعتدلة وحدائق الورد',
     descriptionEn: 'Summer resort of Arabia with green mountains, mild weather and rose gardens',
     image: '/images/cities/taif-hero.jpg',
+    status: 'comingSoon',
   },
   {
     id: 'أبها',
@@ -54,6 +58,7 @@ export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
     description: 'جبال خضراء وطبيعة ساحرة في منطقة عسير',
     descriptionEn: 'Green mountains and charming nature in Asir region',
     image: '/images/cities/abha-hero.jpg',
+    status: 'comingSoon',
   },
   {
     id: 'العلا',
@@ -65,5 +70,6 @@ export const DESTINATIONS_CATALOG: DestinationCatalogItem[] = [
     description: 'موقع يونسكو مع طبيعة خلابة وآثار عريقة ومناظر صحراوية ساحرة',
     descriptionEn: 'UNESCO site with stunning nature, ancient ruins and charming desert landscapes',
     image: '/images/cities/alula-hero.jpg',
+    status: 'comingSoon',
   },
 ];

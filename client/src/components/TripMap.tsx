@@ -11,7 +11,7 @@ import {
   resolveDestination,
   type LatLng,
 } from "@/lib/destinationsData";
-import type { TripActivity } from "@/lib/llm";
+import type { TripActivity } from "@shared/tripTypes";
 
 // Vite serves Leaflet's default marker images as URLs; wire them up so markers render.
 L.Icon.Default.mergeOptions({

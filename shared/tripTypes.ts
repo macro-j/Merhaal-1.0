@@ -67,9 +67,23 @@ export interface TripDay {
 }
 
 export interface TripHotel {
+  hotelId: string;
   name: string;
-  description: string;
-  bookingUrl: string;
+  nameAr: string;
+  nameEn: string;
+  area: string;
+  areaAr: string;
+  areaEn: string;
+  budgetTier: BudgetTier;
+  reason: string;
+  reasonAr: string;
+  reasonEn: string;
+  searchQuery: string;
+  externalRef?: {
+    provider: string;
+    propertyId?: string;
+    url: string;
+  };
 }
 
 export interface TripQualityBreakdown {

@@ -146,6 +146,7 @@ function immutableShape(plan: GeneratedTripPlan): unknown {
     metadata: plan.metadata,
     preferences: plan.preferences,
     warnings: plan.warnings,
+    hotel: plan.hotel,
     days: plan.days.map((day) => ({
       dayNumber: day.dayNumber,
       date: day.date,

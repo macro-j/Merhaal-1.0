@@ -23,7 +23,8 @@ describe("trip planning pipeline", () => {
         const enriched = structuredClone(draft);
         enriched.title = "رحلة عصرية في الرياض";
         enriched.days[0].title = "يوم الرياض المتجدد";
-        enriched.days[0].description = "يوم يجمع بين التجارب المختارة بإيقاع متوازن.";
+        enriched.days[0].description =
+          "يوم يجمع بين التجارب المختارة بإيقاع متوازن.";
         for (const activity of enriched.days[0].activities) {
           activity.title = `تجربة ${activity.title}`;
           activity.description = `${activity.description} ضمن برنامج يناسب تفضيلات الرحلة.`;
@@ -37,6 +38,7 @@ describe("trip planning pipeline", () => {
     expect(plan.title).toBe("رحلة عصرية في الرياض");
     expect(plan.metadata.engineVersion).toBe("1.1");
     expect(plan.quality.score).toBeGreaterThanOrEqual(75);
+    expect(plan.hotel?.hotelId).toBe("riyadh-four-seasons-kingdom-centre");
   });
 
   it("rejects an AI attempt to change a deterministic time", async () => {
@@ -47,7 +49,25 @@ describe("trip planning pipeline", () => {
       },
     };
 
-    await expect(planTrip(params, copywriter)).rejects.toMatchObject<Partial<PlanningError>>({
+    await expect(planTrip(params, copywriter)).rejects.toMatchObject<
+      Partial<PlanningError>
+    >({
+      code: "PLAN_VALIDATION_FAILED",
+    });
+  });
+
+  it("rejects an AI attempt to replace the deterministic hotel", async () => {
+    const copywriter: TripCopywriter = {
+      async enrich(draft) {
+        draft.hotel!.hotelId = "invented-hotel";
+        draft.hotel!.name = "Invented Hotel";
+        return draft;
+      },
+    };
+
+    await expect(planTrip(params, copywriter)).rejects.toMatchObject<
+      Partial<PlanningError>
+    >({
       code: "PLAN_VALIDATION_FAILED",
     });
   });

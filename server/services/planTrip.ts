@@ -1,12 +1,18 @@
-import type { GenerateTripParams, GeneratedTripPlan } from "../../shared/tripTypes";
+import type {
+  GenerateTripParams,
+  GeneratedTripPlan,
+} from "../../shared/tripTypes";
 import type { TripCopywriter } from "../ai/groqTripCopywriter";
+import { curatedHotelsProvider, type HotelsProvider } from "../hotels/provider";
+import { recommendHotel } from "../hotels/recommender";
 import { buildDraftPlan } from "../planning/engine";
 import { PlanningError } from "../planning/errors";
 import { validateImmutableFields, validatePlan } from "../planning/validator";
 
 export async function planTrip(
   params: GenerateTripParams,
-  copywriter: TripCopywriter
+  copywriter: TripCopywriter,
+  hotelsProvider: HotelsProvider = curatedHotelsProvider
 ): Promise<GeneratedTripPlan> {
   const { plan: draft, context } = buildDraftPlan(params);
   const draftValidation = validatePlan(draft, context);
@@ -18,6 +24,12 @@ export async function planTrip(
     );
   }
   draft.quality = draftValidation.quality;
+  draft.hotel = await recommendHotel(
+    params,
+    draft,
+    context.knowledge,
+    hotelsProvider
+  );
 
   const lockedDraft = structuredClone(draft);
   const enriched = await copywriter.enrich(structuredClone(draft));

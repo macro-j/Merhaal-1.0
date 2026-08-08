@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { HotelRecommendationCard } from "@/components/HotelRecommendationCard";
 import {
   Accordion,
   AccordionItem,
@@ -16,7 +17,6 @@ import {
 import { buildMapsUrl } from "@/lib/maps";
 import { cn, getLocalizedName } from "@/lib/utils";
 import {
-  BedDouble,
   Calendar,
   Clock,
   DollarSign,
@@ -44,17 +44,6 @@ function MapLoadingFallback() {
       </div>
     </div>
   );
-}
-
-function buildBookingUrl(hotel: TripHotel, destination: string): string {
-  if (hotel.bookingUrl && /^https?:\/\//i.test(hotel.bookingUrl)) {
-    return hotel.bookingUrl;
-  }
-  const query = encodeURIComponent(`${hotel.name} ${destination}`.trim()).replace(
-    /%20/g,
-    "+"
-  );
-  return `https://www.booking.com/searchresults.html?ss=${query}`;
 }
 
 const ARABIC_DAY_ORDINALS = [
@@ -285,7 +274,6 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
     );
   }
 
-  const hotelBookingUrl = hotel ? buildBookingUrl(hotel, destination) : null;
   const allActivities = days.flatMap((day) => day.activities ?? []);
 
   return (
@@ -322,34 +310,7 @@ export function SavedTripItinerary({ days, destination, hotel }: SavedTripItiner
         </CardContent>
       </Card>
 
-      {hotel && (
-        <Card className="overflow-hidden print:break-inside-avoid print:border print:border-gray-200 print:bg-white print:shadow-none">
-          <CardHeader className="border-b bg-primary/5 py-4 print:border-gray-200 print:bg-gray-50">
-            <CardTitle className="flex items-center gap-2 text-base font-bold print:text-black">
-              <BedDouble className="w-4 h-4 text-primary print:text-gray-700" />
-              الإقامة المقترحة
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3 pt-4 print:text-black">
-            <div>
-              <h4 className="font-semibold leading-snug print:text-black">{hotel.name}</h4>
-              {hotel.description && (
-                <p className="mt-1 text-sm leading-relaxed text-muted-foreground print:text-gray-700">
-                  {hotel.description}
-                </p>
-              )}
-            </div>
-            {hotelBookingUrl && (
-              <Button variant="secondary" size="sm" className="gap-1.5 print:hidden" asChild>
-                <a href={hotelBookingUrl} target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  احجز عبر Booking.com
-                </a>
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <HotelRecommendationCard hotel={hotel} destination={destination} />
 
       {days.map((day) => (
         <Card

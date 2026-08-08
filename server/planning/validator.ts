@@ -37,8 +37,11 @@ function validateActivity(
   if (activity.activityType !== place.category) {
     errors.push(`${where}: activityType لا يطابق تصنيف المكان.`);
   }
-  if (activity.mealSlot && (place.category !== "dining" || !place.mealSlot.includes(activity.mealSlot))) {
-    errors.push(`${where}: المكان لا يدعم الوجبة المحددة.`);
+  if (activity.mealSlot && !place.mealSlot.includes(activity.mealSlot)) {
+    errors.push(`${where}: المكان لا يدعم نوع التوقف الغذائي المحدد.`);
+  }
+  if (!activity.mealSlot && !place.mealSlot.includes("لا ينطبق")) {
+    errors.push(`${where}: مكان الطعام مستخدم كنشاط سياحي دون mealSlot.`);
   }
   const start = timeToMinutes(activity.startTime);
   const end = timeToMinutes(activity.endTime);
@@ -61,7 +64,6 @@ export function validatePlan(plan: GeneratedTripPlan, context: PlanningContext):
   const placeById = new Map(context.knowledge.places.map((place) => [place.id, place]));
   const seenPlaceIds = new Set<string>();
   const seenActivityIds = new Set<string>();
-  const expectedActivities = context.mealsPerDay === 3 ? 5 : 4;
 
   if (plan.days.length !== plan.metadata.durationDays) {
     errors.push(`عدد الأيام ${plan.days.length} لا يطابق المدة ${plan.metadata.durationDays}.`);
@@ -69,21 +71,36 @@ export function validatePlan(plan: GeneratedTripPlan, context: PlanningContext):
 
   plan.days.forEach((day, dayIndex) => {
     const where = `اليوم ${dayIndex + 1}`;
+    const expectedSlots = context.daySchedules[dayIndex]?.slots ?? [];
     if (day.dayNumber !== dayIndex + 1) errors.push(`${where}: dayNumber غير مرتب.`);
-    if (day.activities.length !== expectedActivities) {
-      errors.push(`${where}: المتوقع ${expectedActivities} أنشطة، الموجود ${day.activities.length}.`);
+    if (day.activities.length !== expectedSlots.length) {
+      errors.push(`${where}: المتوقع ${expectedSlots.length} أنشطة، الموجود ${day.activities.length}.`);
     }
-    const mealCount = day.activities.filter((activity) => Boolean(activity.mealSlot)).length;
-    if (mealCount !== context.mealsPerDay) {
-      errors.push(`${where}: المتوقع ${context.mealsPerDay} وجبات، الموجود ${mealCount}.`);
+    const expectedMeals = expectedSlots.filter(
+      (slot) => slot.mealSlot && slot.mealSlot !== "قهوة"
+    ).length;
+    const mealCount = day.activities.filter(
+      (activity) => activity.mealSlot && activity.mealSlot !== "قهوة"
+    ).length;
+    if (mealCount !== expectedMeals) {
+      errors.push(`${where}: المتوقع ${expectedMeals} وجبات، الموجود ${mealCount}.`);
     }
 
     let previousEnd: number | null = null;
     const nonMealPlaces: DestinationPlace[] = [];
     day.activities.forEach((activity, activityIndex) => {
       const activityWhere = `${where}، النشاط ${activityIndex + 1}`;
+      const expectedSlot = expectedSlots[activityIndex];
       const place = placeById.get(activity.placeId);
       validateActivity(activity, place, activityWhere, errors);
+      if (
+        expectedSlot &&
+        (activity.mealSlot !== expectedSlot.mealSlot ||
+          activity.startTime !== expectedSlot.startTime ||
+          activity.endTime !== expectedSlot.endTime)
+      ) {
+        errors.push(`${activityWhere}: لا يطابق التوقيت أو نوع التوقف في جدول اليوم.`);
+      }
       if (seenPlaceIds.has(activity.placeId)) errors.push(`${activityWhere}: مكان مكرر.`);
       if (seenActivityIds.has(activity.id)) errors.push(`${activityWhere}: معرف نشاط مكرر.`);
       seenPlaceIds.add(activity.placeId);

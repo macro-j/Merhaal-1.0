@@ -31,13 +31,13 @@ function expectInsufficient(overrides: Partial<GenerateTripParams>) {
   }
 }
 
-describe("Planning Engine v1", () => {
+describe("Planning Engine v1.1", () => {
   it("builds a valid one-day heritage trip", () => {
     const { plan, context } = build();
     const result = validatePlan(plan, context);
     expect(result.valid, result.errors.join("\n")).toBe(true);
     expect(plan.days).toHaveLength(1);
-    expect(plan.days[0].activities).toHaveLength(4);
+    expect(plan.days[0].activities).toHaveLength(6);
     expect(result.quality.breakdown.interestMatch).toBeGreaterThanOrEqual(50);
   });
 
@@ -53,10 +53,12 @@ describe("Planning Engine v1", () => {
     expect(result.quality.score).toBeGreaterThanOrEqual(75);
   });
 
-  it("schedules meals internally without a meal-count input", () => {
+  it("schedules meals and an optional coffee stop without a meal-count input", () => {
     const { plan } = build();
     expect(plan.days[0].activities.filter((activity) => activity.mealSlot).map((activity) => activity.mealSlot))
-      .toEqual(["غداء", "عشاء"]);
+      .toEqual(["فطور", "غداء", "قهوة", "عشاء"]);
+    expect(plan.days[0].activities.filter((activity) => activity.mealSlot !== "قهوة" && activity.mealSlot))
+      .toHaveLength(3);
   });
 
   it("uses traveler count when resolving the affordable budget tier", () => {
@@ -75,6 +77,13 @@ describe("Planning Engine v1", () => {
     expect(activities.every((activity) => allowedIds.has(activity.placeId))).toBe(true);
   });
 
+  it("selects the same ordered place IDs for the same planning inputs", () => {
+    const first = build({ durationDays: 3, budgetTier: "فاخرة", totalBudgetSAR: 15000 }).plan;
+    const second = build({ durationDays: 3, budgetTier: "فاخرة", totalBudgetSAR: 15000 }).plan;
+    expect(first.days.flatMap((day) => day.activities.map((activity) => activity.placeId)))
+      .toEqual(second.days.flatMap((day) => day.activities.map((activity) => activity.placeId)));
+  });
+
   it("creates chronological, non-overlapping activity times", () => {
     const { plan } = build();
     for (const day of plan.days) {
@@ -87,8 +96,47 @@ describe("Planning Engine v1", () => {
     }
   });
 
-  it("rejects a 3-day request when unique lunch places are insufficient", () => {
-    expectInsufficient({ durationDays: 3, budgetTier: "فاخرة" });
+  it("varies meal density between arrival, full, and departure days", () => {
+    const { plan, context } = build({ durationDays: 3, budgetTier: "فاخرة", totalBudgetSAR: 15000 });
+    const result = validatePlan(plan, context);
+    expect(result.valid, result.errors.join("\n")).toBe(true);
+    expect(plan.days.map((day) => day.activities.filter(
+      (activity) => activity.mealSlot && activity.mealSlot !== "قهوة"
+    ).length)).toEqual([1, 2, 1]);
+    expect(plan.days[1].activities.some((activity) => activity.mealSlot === "قهوة")).toBe(true);
+  });
+
+  it("builds valid two-day plans for solo, couple, and family-sized Riyadh trips", () => {
+    for (const travelerCount of [1, 2, 4]) {
+      const { plan, context } = build({
+        durationDays: 2,
+        budgetTier: "فاخرة",
+        totalBudgetSAR: 5000 * travelerCount,
+        travelerCount,
+        interests: ["ترند ولايف ستايل", "عريق وتراثي"],
+      });
+      const result = validatePlan(plan, context);
+      expect(result.valid, result.errors.join("\n")).toBe(true);
+      expect(plan.preferences.travelerCount).toBe(travelerCount);
+    }
+  });
+
+  it("builds a grounded one-day Jeddah plan when its luxury food coverage is sufficient", () => {
+    const { plan, context } = build({
+      destination: "جدة",
+      budgetTier: "فاخرة",
+      totalBudgetSAR: 6000,
+      interests: ["استرخاء وطبيعة"],
+    });
+    const result = validatePlan(plan, context);
+    expect(result.valid, result.errors.join("\n")).toBe(true);
+    expect(plan.days[0].activities.filter((activity) => activity.mealSlot)).toHaveLength(2);
+    expect(plan.days[0].activities.some((activity) => activity.mealSlot === "قهوة")).toBe(false);
+  });
+
+  it("reports the exact Jeddah food shortage for two and three days", () => {
+    expectInsufficient({ destination: "جدة", durationDays: 2, budgetTier: "فاخرة", totalBudgetSAR: 12000 });
+    expectInsufficient({ destination: "جدة", durationDays: 3, budgetTier: "فاخرة", totalBudgetSAR: 18000 });
   });
 
   it("rejects trips longer than the current three-day product scope", () => {
@@ -96,7 +144,13 @@ describe("Planning Engine v1", () => {
   });
 
   it("rejects an economic plan when its meal constraints cannot be grounded", () => {
-    expectInsufficient({ budgetTier: "اقتصادية", totalBudgetSAR: 600 });
+    try {
+      build({ budgetTier: "اقتصادية", totalBudgetSAR: 600 });
+      throw new Error("Expected planning to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(PlanningError);
+      expect((error as PlanningError).details.some((detail) => detail.includes("توقفات طعام فريدة"))).toBe(true);
+    }
   });
 
   it("rejects destinations marked as coming soon", () => {

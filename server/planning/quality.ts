@@ -18,7 +18,12 @@ export function calculateQuality(plan: GeneratedTripPlan, context: PlanningConte
   const resolvedPlaces = activities
     .map((activity) => placeById.get(activity.placeId))
     .filter((place): place is DestinationPlace => Boolean(place));
-  const nonMealPlaces = resolvedPlaces.filter((place) => place.category !== "dining" && place.category !== "cafe");
+  const nonMealPlaces = activities
+    .map((activity) => ({ activity, place: placeById.get(activity.placeId) }))
+    .filter((entry): entry is { activity: typeof activities[number]; place: DestinationPlace } =>
+      Boolean(entry.place) && !entry.activity.mealSlot
+    )
+    .map((entry) => entry.place);
   const matchingInterests = nonMealPlaces.filter((place) =>
     place.interests.some((tag) => context.interestTags.includes(tag))
   ).length;
@@ -38,12 +43,17 @@ export function calculateQuality(plan: GeneratedTripPlan, context: PlanningConte
 
   const ids = activities.map((activity) => activity.placeId);
   const noDuplicates = new Set(ids).size === ids.length ? 100 : 0;
-  const expectedActivities = context.mealsPerDay === 3 ? 5 : 4;
-  const balancedDays = plan.days.filter((day) => day.activities.length === expectedActivities).length;
-  const dailyBalance = clamp((balancedDays / Math.max(1, plan.days.length)) * 100);
-  const compliantMeals = plan.days.filter(
-    (day) => day.activities.filter((activity) => Boolean(activity.mealSlot)).length === context.mealsPerDay
+  const balancedDays = plan.days.filter(
+    (day, dayIndex) => day.activities.length === (context.daySchedules[dayIndex]?.slots.length ?? 0)
   ).length;
+  const dailyBalance = clamp((balancedDays / Math.max(1, plan.days.length)) * 100);
+  const compliantMeals = plan.days.filter((day, dayIndex) => {
+    const expected = (context.daySchedules[dayIndex]?.slots ?? [])
+      .map((slot) => slot.mealSlot)
+      .filter(Boolean);
+    const actual = day.activities.map((activity) => activity.mealSlot).filter(Boolean);
+    return JSON.stringify(actual) === JSON.stringify(expected);
+  }).length;
   const mealsCompliance = clamp((compliantMeals / Math.max(1, plan.days.length)) * 100);
 
   let validTimePairs = 0;

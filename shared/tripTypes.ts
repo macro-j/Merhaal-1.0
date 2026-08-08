@@ -46,7 +46,7 @@ export interface TripActivity {
   id: string;
   placeId: string;
   activityType: DestinationCategory;
-  mealSlot?: Exclude<MealSlot, "قهوة" | "لا ينطبق">;
+  mealSlot?: Exclude<MealSlot, "لا ينطبق">;
   time: TripActivityTime;
   startTime: string;
   endTime: string;
@@ -93,7 +93,7 @@ export interface TripMetadata {
   startDate: string;
   endDate: string;
   durationDays: number;
-  engineVersion: "1.0";
+  engineVersion: "1.0" | "1.1";
 }
 
 export interface TripPreferences {

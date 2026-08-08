@@ -35,7 +35,7 @@ describe("trip planning pipeline", () => {
 
     const plan = await planTrip(params, copywriter);
     expect(plan.title).toBe("رحلة عصرية في الرياض");
-    expect(plan.metadata.engineVersion).toBe("1.0");
+    expect(plan.metadata.engineVersion).toBe("1.1");
     expect(plan.quality.score).toBeGreaterThanOrEqual(75);
   });
 

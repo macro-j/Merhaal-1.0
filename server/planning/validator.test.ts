@@ -30,10 +30,22 @@ describe("Quality Validator", () => {
 
   it("rejects an incorrect meal count", () => {
     const { plan, context } = draft();
-    delete plan.days[0].activities[1].mealSlot;
+    const lunch = plan.days[0].activities.find((activity) => activity.mealSlot === "غداء");
+    expect(lunch).toBeDefined();
+    delete lunch!.mealSlot;
     const result = validatePlan(plan, context);
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.includes("وجبات"))).toBe(true);
+  });
+
+  it("does not count a coffee stop as a meal and validates its mealSlot", () => {
+    const { plan, context } = draft();
+    const coffee = plan.days[0].activities.find((activity) => activity.mealSlot === "قهوة");
+    expect(coffee).toBeDefined();
+    coffee!.mealSlot = "عشاء";
+    const result = validatePlan(plan, context);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((error) => error.includes("التوقف الغذائي"))).toBe(true);
   });
 
   it("rejects reversed times", () => {
@@ -46,7 +58,7 @@ describe("Quality Validator", () => {
 
   it("rejects overlapping activities", () => {
     const { plan, context } = draft();
-    plan.days[0].activities[1].startTime = "10:30";
+    plan.days[0].activities[1].startTime = "08:30";
     const result = validatePlan(plan, context);
     expect(result.valid).toBe(false);
     expect(result.errors.some((error) => error.includes("متداخل"))).toBe(true);

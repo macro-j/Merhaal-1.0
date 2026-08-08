@@ -24,7 +24,7 @@ export interface PlanningContext {
   knowledge: DestinationKnowledge;
   interestTags: InterestTag[];
   budgetTier: BudgetTier;
-  mealsPerDay: 2 | 3;
+  daySchedules: DaySchedule[];
   minimumInterestCoverage: number;
 }
 
@@ -33,32 +33,55 @@ export interface DraftPlanResult {
   context: PlanningContext;
 }
 
-type ScheduleSlot = {
-  kind: "place" | "meal";
+export type ScheduleSlot = {
+  kind: "place" | "food";
   startTime: string;
   endTime: string;
   time: TripActivityTime;
   timeBlocks: TimeBlock[];
-  mealSlot?: Exclude<MealSlot, "قهوة" | "لا ينطبق">;
+  mealSlot?: Exclude<MealSlot, "لا ينطبق">;
 };
 
-const SCHEDULES: Record<2 | 3, ScheduleSlot[]> = {
-  2: [
-    { kind: "place", startTime: "09:00", endTime: "11:00", time: "الصباح", timeBlocks: ["morning"] },
-    { kind: "meal", mealSlot: "غداء", startTime: "12:00", endTime: "13:30", time: "الظهر", timeBlocks: ["afternoon"] },
-    { kind: "place", startTime: "16:00", endTime: "18:00", time: "الظهر", timeBlocks: ["afternoon", "evening"] },
-    { kind: "meal", mealSlot: "عشاء", startTime: "19:00", endTime: "20:30", time: "المساء", timeBlocks: ["evening", "night"] },
-  ],
-  3: [
-    { kind: "meal", mealSlot: "فطور", startTime: "08:00", endTime: "09:00", time: "الصباح", timeBlocks: ["morning"] },
-    { kind: "place", startTime: "09:30", endTime: "11:30", time: "الصباح", timeBlocks: ["morning"] },
-    { kind: "meal", mealSlot: "غداء", startTime: "12:00", endTime: "13:30", time: "الظهر", timeBlocks: ["afternoon"] },
-    { kind: "place", startTime: "15:00", endTime: "17:30", time: "الظهر", timeBlocks: ["afternoon", "evening"] },
-    { kind: "meal", mealSlot: "عشاء", startTime: "18:00", endTime: "19:30", time: "المساء", timeBlocks: ["evening", "night"] },
-  ],
+export type DaySchedule = {
+  profile: "arrival" | "full" | "departure";
+  slots: ScheduleSlot[];
 };
 
-const NON_ACTIVITY_CATEGORIES = new Set(["dining", "cafe"]);
+const ARRIVAL_SLOTS: ScheduleSlot[] = [
+  { kind: "place", startTime: "15:00", endTime: "17:00", time: "الظهر", timeBlocks: ["afternoon", "evening"] },
+  { kind: "food", mealSlot: "عشاء", startTime: "18:30", endTime: "20:00", time: "المساء", timeBlocks: ["evening", "night"] },
+];
+
+const FULL_DAY_SLOTS: ScheduleSlot[] = [
+  { kind: "place", startTime: "09:00", endTime: "11:00", time: "الصباح", timeBlocks: ["morning"] },
+  { kind: "food", mealSlot: "غداء", startTime: "12:00", endTime: "13:30", time: "الظهر", timeBlocks: ["afternoon"] },
+  { kind: "place", startTime: "15:00", endTime: "17:00", time: "الظهر", timeBlocks: ["afternoon", "evening"] },
+  { kind: "food", mealSlot: "عشاء", startTime: "19:00", endTime: "20:30", time: "المساء", timeBlocks: ["evening", "night"] },
+];
+
+const BREAKFAST_SLOT: ScheduleSlot = {
+  kind: "food",
+  mealSlot: "فطور",
+  startTime: "08:00",
+  endTime: "08:45",
+  time: "الصباح",
+  timeBlocks: ["morning"],
+};
+
+const COFFEE_SLOT: ScheduleSlot = {
+  kind: "food",
+  mealSlot: "قهوة",
+  startTime: "17:30",
+  endTime: "18:15",
+  time: "الظهر",
+  timeBlocks: ["evening"],
+};
+
+const DEPARTURE_SLOTS: ScheduleSlot[] = [
+  { kind: "place", startTime: "09:00", endTime: "11:00", time: "الصباح", timeBlocks: ["morning"] },
+  { kind: "food", mealSlot: "غداء", startTime: "12:00", endTime: "13:30", time: "الظهر", timeBlocks: ["afternoon"] },
+  { kind: "place", startTime: "15:00", endTime: "17:00", time: "الظهر", timeBlocks: ["afternoon", "evening"] },
+];
 
 function budgetAllowed(place: DestinationPlace, tier: BudgetTier): boolean {
   if (place.budgetLevel.includes(tier)) return true;
@@ -121,10 +144,43 @@ function scorePlace(
 
 function isCompatible(place: DestinationPlace, slot: ScheduleSlot): boolean {
   if (!slot.timeBlocks.some((block) => place.recommendedTime.includes(block))) return false;
-  if (slot.kind === "meal") {
-    return place.category === "dining" && Boolean(slot.mealSlot && place.mealSlot.includes(slot.mealSlot));
+  if (slot.kind === "food") {
+    return Boolean(slot.mealSlot && place.mealSlot.includes(slot.mealSlot));
   }
-  return !NON_ACTIVITY_CATEGORIES.has(place.category);
+  return place.mealSlot.includes("لا ينطبق");
+}
+
+function hasUniqueAssignment(pool: DestinationPlace[], slots: ScheduleSlot[]): boolean {
+  const placeForSlot = new Map<number, string>();
+
+  function assign(place: DestinationPlace, visitedSlots: Set<number>): boolean {
+    for (let slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+      if (visitedSlots.has(slotIndex) || !isCompatible(place, slots[slotIndex])) continue;
+      visitedSlots.add(slotIndex);
+      const currentPlaceId = placeForSlot.get(slotIndex);
+      if (!currentPlaceId) {
+        placeForSlot.set(slotIndex, place.id);
+        return true;
+      }
+      const currentPlace = pool.find((candidate) => candidate.id === currentPlaceId);
+      if (currentPlace && assign(currentPlace, visitedSlots)) {
+        placeForSlot.set(slotIndex, place.id);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const candidates = [...pool].sort((a, b) => {
+    const aOptions = slots.filter((slot) => isCompatible(a, slot)).length;
+    const bOptions = slots.filter((slot) => isCompatible(b, slot)).length;
+    return aOptions - bOptions || a.id.localeCompare(b.id);
+  });
+  let assignments = 0;
+  for (const place of candidates) {
+    if (assign(place, new Set())) assignments += 1;
+  }
+  return assignments >= slots.length;
 }
 
 function pickPlace(
@@ -133,11 +189,18 @@ function pickPlace(
   context: PlanningContext,
   slot: ScheduleSlot,
   categoryCounts: Map<string, number>,
+  remainingSlots: ScheduleSlot[],
   previous?: DestinationPlace
 ): DestinationPlace | null {
   return (
     pool
       .filter((place) => !usedIds.has(place.id) && isCompatible(place, slot))
+      .filter((place) => {
+        const remainingPool = pool.filter(
+          (candidate) => candidate.id !== place.id && !usedIds.has(candidate.id)
+        );
+        return hasUniqueAssignment(remainingPool, remainingSlots);
+      })
       .map((place) => ({ place, score: scorePlace(place, context, slot, categoryCounts, previous) }))
       .sort((a, b) => b.score - a.score || a.place.id.localeCompare(b.place.id))[0]?.place ?? null
   );
@@ -158,7 +221,10 @@ function toActivity(
   interests: TripMood[],
   tags: InterestTag[]
 ): TripActivity {
-  const isMeal = slot.kind === "meal";
+  const isFood = slot.kind === "food";
+  const foodTitle = slot.mealSlot === "قهوة"
+    ? `قهوة في ${place.arabicName}`
+    : `${slot.mealSlot} في ${place.arabicName}`;
   return {
     id: `day-${dayNumber}-${place.id}`,
     placeId: place.id,
@@ -167,7 +233,7 @@ function toActivity(
     time: slot.time,
     startTime: slot.startTime,
     endTime: slot.endTime,
-    title: isMeal && slot.mealSlot ? `${slot.mealSlot} في ${place.arabicName}` : `زيارة ${place.arabicName}`,
+    title: isFood && slot.mealSlot ? foodTitle : `زيارة ${place.arabicName}`,
     description: place.shortDescription,
     reason: reasonFor(place, interests, tags),
     locationName: place.mapSearchQuery,
@@ -206,29 +272,79 @@ function calculateMinimumInterestCoverage(
 ): number {
   if (tags.length === 0 || requiredPlaceActivities === 0) return 0;
   const matching = pool.filter(
-    (place) => !NON_ACTIVITY_CATEGORIES.has(place.category) && place.interests.some((tag) => tags.includes(tag))
+    (place) => place.mealSlot.includes("لا ينطبق") && place.interests.some((tag) => tags.includes(tag))
   ).length;
   return Math.min(0.5, matching / requiredPlaceActivities);
 }
 
-function assertFeasible(
-  pool: DestinationPlace[],
-  durationDays: number,
-  mealsPerDay: 2 | 3
-): void {
-  const slots = SCHEDULES[mealsPerDay];
+function baseSchedules(durationDays: number): DaySchedule[] {
+  if (durationDays === 1) return [{ profile: "full", slots: [...FULL_DAY_SLOTS] }];
+  if (durationDays === 2) {
+    return [
+      { profile: "full", slots: [...FULL_DAY_SLOTS] },
+      { profile: "departure", slots: [...DEPARTURE_SLOTS] },
+    ];
+  }
+  return [
+    { profile: "arrival", slots: [...ARRIVAL_SLOTS] },
+    { profile: "full", slots: [...FULL_DAY_SLOTS] },
+    { profile: "departure", slots: [...DEPARTURE_SLOTS] },
+  ];
+}
+
+function buildDaySchedules(pool: DestinationPlace[], durationDays: number): DaySchedule[] {
+  const schedules = baseSchedules(durationDays);
+  const fullDay = schedules.find((schedule) => schedule.profile === "full");
+  if (
+    fullDay &&
+    pool.some((place) => isCompatible(place, BREAKFAST_SLOT)) &&
+    hasUniqueAssignment(pool, [...schedules.flatMap((schedule) => schedule.slots), BREAKFAST_SLOT])
+  ) {
+    fullDay.slots.unshift(BREAKFAST_SLOT);
+  }
+  if (
+    fullDay &&
+    pool.some((place) => isCompatible(place, COFFEE_SLOT)) &&
+    hasUniqueAssignment(pool, [...schedules.flatMap((schedule) => schedule.slots), COFFEE_SLOT])
+  ) {
+    fullDay.slots.splice(fullDay.slots.length - 1, 0, COFFEE_SLOT);
+  }
+  return schedules;
+}
+
+function assertFeasible(pool: DestinationPlace[], schedules: DaySchedule[]): void {
+  const slots = schedules.flatMap((schedule) => schedule.slots);
   const details: string[] = [];
-  const totalNeeded = slots.length * durationDays;
+  const totalNeeded = slots.length;
   if (pool.length < totalNeeded) {
     details.push(`تحتاج الرحلة ${totalNeeded} أماكن فريدة، والمتاح للميزانية ${pool.length}.`);
   }
+  const requiredFoodStops = slots.filter((slot) => slot.kind === "food").length;
+  const availableFoodPlaces = pool.filter((place) =>
+    slots.some((slot) => slot.kind === "food" && isCompatible(place, slot))
+  ).length;
+  if (availableFoodPlaces < requiredFoodStops) {
+    details.push(
+      `تحتاج الرحلة ${requiredFoodStops} توقفات طعام فريدة، والمتاح ${availableFoodPlaces} أماكن غذائية مناسبة.`
+    );
+  }
 
+  const slotCounts = new Map<string, { slot: ScheduleSlot; needed: number }>();
   for (const slot of slots) {
+    const key = slot.kind === "food" ? `food:${slot.mealSlot}` : `place:${slot.timeBlocks.join("/")}`;
+    const entry = slotCounts.get(key) ?? { slot, needed: 0 };
+    entry.needed += 1;
+    slotCounts.set(key, entry);
+  }
+  for (const { slot, needed } of slotCounts.values()) {
     const compatible = pool.filter((place) => isCompatible(place, slot)).length;
-    if (compatible < durationDays) {
-      const label = slot.kind === "meal" ? slot.mealSlot : `${slot.time} (${slot.timeBlocks.join("/")})`;
-      details.push(`المتاح لفئة ${label}: ${compatible}، والمطلوب ${durationDays}.`);
+    if (compatible < needed) {
+      const label = slot.kind === "food" ? slot.mealSlot : `${slot.time} (${slot.timeBlocks.join("/")})`;
+      details.push(`المتاح لفئة ${label}: ${compatible}، والمطلوب ${needed}.`);
     }
+  }
+  if (!hasUniqueAssignment(pool, slots)) {
+    details.push("لا يمكن توزيع الأماكن المتاحة على كل الفترات والوجبات دون إعادة استخدام placeId.");
   }
 
   if (details.length > 0) {
@@ -253,7 +369,6 @@ export function buildDraftPlan(params: GenerateTripParams): DraftPlanResult {
   }
 
   const durationDays = params.durationDays;
-  const mealsPerDay: 2 | 3 = 2;
   const requestedBudgetTier = resolveBudgetTier(params.budgetTier);
   const travelerCount = Math.max(1, Math.min(12, Math.round(params.travelerCount)));
   const provisionalBudget = params.totalBudgetSAR ?? fallbackBudget(durationDays, requestedBudgetTier) * travelerCount;
@@ -263,25 +378,32 @@ export function buildDraftPlan(params: GenerateTripParams): DraftPlanResult {
   );
   const interestTags = normalizeInterests(params.interests);
   const pool = knowledge.places.filter((place) => budgetAllowed(place, budgetTier));
-  assertFeasible(pool, durationDays, mealsPerDay);
+  const daySchedules = buildDaySchedules(pool, durationDays);
+  assertFeasible(pool, daySchedules);
 
-  const requiredPlaceActivities = SCHEDULES[mealsPerDay].filter((slot) => slot.kind === "place").length * durationDays;
+  const requiredPlaceActivities = daySchedules
+    .flatMap((schedule) => schedule.slots)
+    .filter((slot) => slot.kind === "place").length;
   const context: PlanningContext = {
     knowledge,
     interestTags,
     budgetTier,
-    mealsPerDay,
+    daySchedules,
     minimumInterestCoverage: calculateMinimumInterestCoverage(pool, interestTags, requiredPlaceActivities),
   };
   const usedIds = new Set<string>();
   const categoryCounts = new Map<string, number>();
   const days: TripDay[] = [];
+  const allSlots = daySchedules.flatMap((schedule) => schedule.slots);
+  let completedSlots = 0;
 
   for (let dayNumber = 1; dayNumber <= durationDays; dayNumber += 1) {
     const activities: TripActivity[] = [];
     let previous: DestinationPlace | undefined;
-    for (const slot of SCHEDULES[mealsPerDay]) {
-      const place = pickPlace(pool, usedIds, context, slot, categoryCounts, previous);
+    const schedule = daySchedules[dayNumber - 1];
+    for (const slot of schedule.slots) {
+      const remainingSlots = allSlots.slice(completedSlots + 1);
+      const place = pickPlace(pool, usedIds, context, slot, categoryCounts, remainingSlots, previous);
       if (!place) {
         throw new PlanningError(
           "INSUFFICIENT_KNOWLEDGE",
@@ -293,12 +415,17 @@ export function buildDraftPlan(params: GenerateTripParams): DraftPlanResult {
       categoryCounts.set(place.category, (categoryCounts.get(place.category) ?? 0) + 1);
       activities.push(toActivity(place, slot, dayNumber, params.interests, interestTags));
       previous = place;
+      completedSlots += 1;
     }
     days.push({
       dayNumber,
       date: addDays(params.startDate!, dayNumber - 1),
       title: `اليوم ${dayNumber} في ${knowledge.arabicName}`,
-      description: `برنامج متوازن مبني من قاعدة معرفة Merhaal لليوم ${dayNumber}.`,
+      description: schedule.profile === "full"
+        ? `يوم سياحي كامل ومتوازن مبني من قاعدة معرفة Merhaal.`
+        : schedule.profile === "arrival"
+          ? `برنامج وصول خفيف يوازن بين نشاط رئيسي ووجبة مسائية.`
+          : `برنامج مغادرة متوسط يحافظ على وقت مريح قبل نهاية الرحلة.`,
       activities,
     });
   }
@@ -316,7 +443,7 @@ export function buildDraftPlan(params: GenerateTripParams): DraftPlanResult {
       startDate: params.startDate!,
       endDate: addDays(params.startDate!, durationDays - 1),
       durationDays,
-      engineVersion: "1.0",
+      engineVersion: "1.1",
     },
     preferences: {
       budgetTier: params.budgetTier,

@@ -14,7 +14,12 @@ export type TimeBlock = "morning" | "afternoon" | "evening" | "night";
 
 export type BudgetTier = "budget" | "midRange" | "luxury";
 
-export type AudienceFit = "families" | "couples" | "friends" | "solo" | "business";
+export type AudienceFit =
+  | "families"
+  | "couples"
+  | "friends"
+  | "solo"
+  | "business";
 
 export type MealSlot = "فطور" | "غداء" | "عشاء" | "قهوة" | "لا ينطبق";
 
@@ -65,6 +70,7 @@ export type DestinationPlace = {
   mapSearchQuery: string;
   shortDescription: string;
   planningNotes: string;
+  visitDurationMinutes?: number;
   coordinates?: { lat: number; lng: number };
   mealSlot: MealSlot[];
   placeRole: PlaceRole[];
@@ -96,6 +102,13 @@ type DestinationPlaceSeed = Omit<
   | "priorityScore"
 > & {
   verifiedMealSlots?: Exclude<MealSlot, "لا ينطبق">[];
+  planningScores?: {
+    familyFriendly: number;
+    luxury: number;
+    localAuthenticity: number;
+    trend: number;
+    priority: number;
+  };
 };
 
 export type LatLng = {
@@ -155,7 +168,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Bujairi Terrace, Diriyah",
       shortDescription:
         "وجهة طعام راقية تطل على حي الطريف وتضم مطاعم عالمية ومحلية بأجواء مسائية مميزة.",
-      planningNotes: "مثالي للعشاء مباشرة بعد زيارة الطريف، احجز مسبقاً في المطاعم الراقية.",
+      planningNotes:
+        "مثالي للعشاء مباشرة بعد زيارة الطريف، احجز مسبقاً في المطاعم الراقية.",
     },
     {
       id: "riyadh-boulevard-world",
@@ -171,7 +185,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Boulevard World Riyadh",
       shortDescription:
         "وجهة ترفيهية ضخمة تحاكي مدن العالم ببحيرة وعروض ومطاعم متنوعة ضمن موسم الرياض.",
-      planningNotes: "أنشطة مسائية فقط، تحقق من مواعيد التشغيل الموسمية قبل التخطيط.",
+      planningNotes:
+        "أنشطة مسائية فقط، تحقق من مواعيد التشغيل الموسمية قبل التخطيط.",
     },
     {
       id: "riyadh-via",
@@ -187,7 +202,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "VIA Riyadh",
       shortDescription:
         "وجهة لايف ستايل فاخرة تضم مطاعم عالمية راقية وسينما بوتيك ومتاجر مختارة.",
-      planningNotes: "مناسب لأمسية فاخرة، يلائم تفضيلات الإقامة الفاخرة وذوّاقي الطعام.",
+      planningNotes:
+        "مناسب لأمسية فاخرة، يلائم تفضيلات الإقامة الفاخرة وذوّاقي الطعام.",
     },
     {
       id: "riyadh-kafd",
@@ -203,7 +219,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "King Abdullah Financial District, Riyadh",
       shortDescription:
         "حي مالي حديث بناطحات سحاب أيقونية وممشى معلق ومطاعم ومقاهٍ عصرية.",
-      planningNotes: "يجمع بين الأنشطة العصرية والطعام، مناسب بعد الظهر والمساء.",
+      planningNotes:
+        "يجمع بين الأنشطة العصرية والطعام، مناسب بعد الظهر والمساء.",
     },
     {
       id: "riyadh-suhail",
@@ -237,7 +254,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Myazu Riyadh",
       shortDescription:
         "مطعم ياباني راقٍ معروف بأطباقه الفاخرة وأجوائه الأنيقة في قلب العليا.",
-      planningNotes: "خيار عشاء فاخر، يناسب الميزانية العالية وعشاق المطبخ الآسيوي.",
+      planningNotes:
+        "خيار عشاء فاخر، يناسب الميزانية العالية وعشاق المطبخ الآسيوي.",
     },
     {
       id: "riyadh-wadi-hanifah",
@@ -253,7 +271,8 @@ const RIYADH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Wadi Hanifah, Riyadh",
       shortDescription:
         "وادٍ أخضر ممتد بمسارات للمشي وبحيرات ومناطق خضراء مثالية للاسترخاء وسط الطبيعة.",
-      planningNotes: "ممتع صباحاً أو قبل المغرب، قريب من الدرعية فيسهل دمجه بيوم الطريف.",
+      planningNotes:
+        "ممتع صباحاً أو قبل المغرب، قريب من الدرعية فيسهل دمجه بيوم الطريف.",
     },
     {
       id: "riyadh-national-museum",
@@ -423,6 +442,211 @@ const RIYADH: DestinationKnowledgeSeed = {
         "وجهة باربكيو محلية شهيرة بلحومها المدخنة على الطريقة الأمريكية، تجربة عشاء دسمة ومميزة.",
       planningNotes: "عشاء دسم مثالي بعد يوم نشط، أجواء كاجوال حيوية.",
     },
+    {
+      id: "riyadh-mama-noura",
+      name: "Mama Noura, King Abdullah Road",
+      arabicName: "ماما نورة طريق الملك عبدالله",
+      englishName: "Mama Noura, King Abdullah Road",
+      category: "dining",
+      verifiedMealSlots: ["فطور", "غداء", "عشاء"],
+      area: "Ar Rahmaniyyah",
+      recommendedTime: ["morning", "afternoon", "evening", "night"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "solo"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "Mama Noura King Abdullah Road, Riyadh",
+      shortDescription:
+        "مطعم محلي سريع معروف بالشاورما والفلافل والعصائر، وله حضور قديم وواسع في الرياض.",
+      planningNotes:
+        "مرن للفطور أو الغداء أو العشاء الاقتصادي. مدة الزيارة 60 دقيقة تقدير تخطيطي وليست مدة رسمية.",
+      visitDurationMinutes: 60,
+      planningScores: {
+        familyFriendly: 8,
+        luxury: 2,
+        localAuthenticity: 8,
+        trend: 7,
+        priority: 84,
+      },
+    },
+    {
+      id: "riyadh-al-romansiah",
+      name: "Al Romansiah, Riyadh",
+      arabicName: "مطاعم الرومانسية الرياض",
+      englishName: "Al Romansiah, Riyadh",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Eastern Riyadh",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "business"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "Al Romansiah Riyadh",
+      shortDescription:
+        "سلسلة سعودية تقدم أطباق الأرز واللحوم والمأكولات الشعبية عبر عدة فروع في الرياض.",
+      planningNotes:
+        "خيار عملي لمجموعات الغداء أو العشاء. مدة الزيارة 90 دقيقة تقدير تخطيطي، ويحدد الفرع الأنسب وفق المسار.",
+      visitDurationMinutes: 90,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 3,
+        localAuthenticity: 8,
+        trend: 6,
+        priority: 84,
+      },
+    },
+    {
+      id: "riyadh-shawarmer",
+      name: "Shawarmer, Riyadh",
+      arabicName: "شاورمر الرياض",
+      englishName: "Shawarmer, Riyadh",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Northern Riyadh",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["budget"],
+      bestFor: ["families", "friends", "solo"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "Shawarmer Riyadh",
+      shortDescription:
+        "علامة سعودية انطلقت من الرياض وتقدم الشاورما بصيغة سريعة مناسبة للتوقف بين الأنشطة.",
+      planningNotes:
+        "غداء أو عشاء اقتصادي سريع. مدة الزيارة 45 دقيقة تقدير تخطيطي، ويحدد الفرع وفق خط السير.",
+      visitDurationMinutes: 45,
+      planningScores: {
+        familyFriendly: 8,
+        luxury: 1,
+        localAuthenticity: 6,
+        trend: 8,
+        priority: 76,
+      },
+    },
+    {
+      id: "riyadh-najd-village",
+      name: "Najd Village, Al Takhassusi",
+      arabicName: "القرية النجدية التخصصي",
+      englishName: "Najd Village, Al Takhassusi",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Al Olaya",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["midRange"],
+      bestFor: ["families", "friends", "couples", "business"],
+      interests: ["food", "restaurants", "culture", "heritage"],
+      mapSearchQuery: "Najd Village Al Takhassusi, Riyadh",
+      shortDescription:
+        "مطعم يقدم المطبخ النجدي في بيئة مستوحاة من العمارة والجلسات التقليدية المحلية.",
+      planningNotes:
+        "اختيار أصيل لغداء أو عشاء سعودي. مدة الزيارة 120 دقيقة تقدير تخطيطي، ويفضل الحجز للمجموعات.",
+      visitDurationMinutes: 120,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 5,
+        localAuthenticity: 10,
+        trend: 7,
+        priority: 92,
+      },
+    },
+    {
+      id: "riyadh-half-million",
+      name: "Half Million Coffee, Riyadh",
+      arabicName: "هاف مليون كوفي الرياض",
+      englishName: "Half Million Coffee, Riyadh",
+      category: "cafe",
+      verifiedMealSlots: ["قهوة"],
+      area: "Al Olaya",
+      recommendedTime: ["morning", "afternoon", "evening"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["friends", "couples", "solo", "business"],
+      interests: ["food", "relaxation"],
+      mapSearchQuery: "Half Million Coffee Riyadh",
+      shortDescription:
+        "علامة قهوة سعودية بدأت في الرياض وتقدم محطة قهوة سريعة بأسعار وصول واسعة.",
+      planningNotes:
+        "مسجل كتوقف قهوة فقط وليس كوجبة أو فطور. مدة الزيارة 45 دقيقة تقدير تخطيطي، ويحدد الفرع وفق المسار.",
+      visitDurationMinutes: 45,
+      planningScores: {
+        familyFriendly: 7,
+        luxury: 3,
+        localAuthenticity: 6,
+        trend: 9,
+        priority: 78,
+      },
+    },
+    {
+      id: "riyadh-zoo",
+      name: "Riyadh Zoo",
+      arabicName: "حديقة الحيوان بالرياض",
+      englishName: "Riyadh Zoo",
+      category: "family",
+      area: "Al Malaz",
+      recommendedTime: ["morning", "afternoon"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends"],
+      interests: ["family", "kids", "entertainment", "nature"],
+      mapSearchQuery: "Riyadh Zoo, Al Malaz",
+      shortDescription:
+        "حديقة حيوان تعليمية تضم أنواعاً متعددة ومسارات زيارة مناسبة للعائلات والأطفال.",
+      planningNotes:
+        "نشاط نهاري عائلي. مدة الزيارة 180 دقيقة تقدير تخطيطي؛ يجب التحقق من أيام التشغيل والتذاكر قبل اعتماد الخطة.",
+      visitDurationMinutes: 180,
+      planningScores: {
+        familyFriendly: 10,
+        luxury: 2,
+        localAuthenticity: 5,
+        trend: 7,
+        priority: 88,
+      },
+    },
+    {
+      id: "riyadh-souq-al-zal",
+      name: "Souq Al Zal",
+      arabicName: "سوق الزل",
+      englishName: "Souq Al Zal",
+      category: "shopping",
+      area: "Qasr Al Hukm",
+      recommendedTime: ["afternoon", "evening"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "couples", "solo"],
+      interests: ["shopping", "culture", "heritage"],
+      mapSearchQuery: "Souq Al Zal, Riyadh",
+      shortDescription:
+        "سوق تاريخي في قلب الرياض معروف بالسجاد والتحف والمنتجات التراثية والمزادات الشعبية.",
+      planningNotes:
+        "يجمع التسوق بالتراث قرب منطقة قصر الحكم. مدة الزيارة 90 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 90,
+      planningScores: {
+        familyFriendly: 7,
+        luxury: 2,
+        localAuthenticity: 10,
+        trend: 6,
+        priority: 92,
+      },
+    },
+    {
+      id: "riyadh-roshn-front",
+      name: "ROSHN Front Shopping Area",
+      arabicName: "واجهة روشن منطقة التسوق",
+      englishName: "ROSHN Front Shopping Area",
+      category: "modern",
+      area: "Northern Riyadh",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["midRange", "luxury"],
+      bestFor: ["families", "friends", "couples", "business"],
+      interests: ["shopping", "entertainment", "family", "food"],
+      mapSearchQuery: "ROSHN Front Shopping Area, Riyadh",
+      shortDescription:
+        "وجهة حضرية حديثة تجمع المتاجر والمطاعم والسينما والترفيه العائلي في شمال الرياض.",
+      planningNotes:
+        "محطة لايف ستايل مرنة بعد الظهر أو مساءً. مدة الزيارة 150 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 150,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 7,
+        localAuthenticity: 4,
+        trend: 9,
+        priority: 84,
+      },
+    },
   ],
 };
 
@@ -447,7 +671,8 @@ const JEDDAH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Al-Balad, Historic Jeddah",
       shortDescription:
         "حي تاريخي مسجّل في التراث العالمي ببيوت الروشان الخشبية والأسواق العتيقة.",
-      planningNotes: "أجمل صباحاً أو مساءً، تجوّل سيراً واجمعه مع مطعم قريب في البلد.",
+      planningNotes:
+        "أجمل صباحاً أو مساءً، تجوّل سيراً واجمعه مع مطعم قريب في البلد.",
     },
     {
       id: "jeddah-yacht-club",
@@ -463,7 +688,8 @@ const JEDDAH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Jeddah Yacht Club",
       shortDescription:
         "وجهة بحرية فاخرة بمراسٍ لليخوت ومطاعم راقية وأجواء مسائية أنيقة على البحر الأحمر.",
-      planningNotes: "أمسية فاخرة على الواجهة، مثالي للميزانية العالية وعشاء راقٍ.",
+      planningNotes:
+        "أمسية فاخرة على الواجهة، مثالي للميزانية العالية وعشاء راقٍ.",
     },
     {
       id: "jeddah-waterfront",
@@ -495,7 +721,8 @@ const JEDDAH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Fakieh Aquarium, Jeddah",
       shortDescription:
         "حوض أحياء بحرية يضم مئات الأنواع وعروض الدلافين، تجربة مثالية للأطفال والعائلات.",
-      planningNotes: "نشاط داخلي مناسب للظهيرة، قريب من الكورنيش فيسهل دمجه بيوم بحري.",
+      planningNotes:
+        "نشاط داخلي مناسب للظهيرة، قريب من الكورنيش فيسهل دمجه بيوم بحري.",
     },
     {
       id: "jeddah-khayal",
@@ -561,7 +788,264 @@ const JEDDAH: DestinationKnowledgeSeed = {
       mapSearchQuery: "Al Rahma Mosque, Jeddah",
       shortDescription:
         "المسجد العائم على مياه البحر الأحمر، معلم معماري خلاب خصوصاً وقت الغروب.",
-      planningNotes: "زيارة قصيرة تُدمج بسهولة مع جولة الكورنيش، أجمل عند الغروب.",
+      planningNotes:
+        "زيارة قصيرة تُدمج بسهولة مع جولة الكورنيش، أجمل عند الغروب.",
+    },
+    {
+      id: "jeddah-albaik",
+      name: "ALBAIK, Jeddah",
+      arabicName: "البيك جدة",
+      englishName: "ALBAIK, Jeddah",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Central Jeddah",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["budget"],
+      bestFor: ["families", "friends", "solo"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "ALBAIK Jeddah",
+      shortDescription:
+        "علامة وجبات سريعة سعودية بدأت قصتها في جدة وتشتهر بالدجاج والمأكولات البحرية السريعة.",
+      planningNotes:
+        "خيار محلي اقتصادي للغداء أو العشاء. مدة الزيارة 45 دقيقة تقدير تخطيطي، ويحدد الفرع وفق المسار.",
+      visitDurationMinutes: 45,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 1,
+        localAuthenticity: 10,
+        trend: 9,
+        priority: 94,
+      },
+    },
+    {
+      id: "jeddah-abu-zaid",
+      name: "Abu Zaid Restaurant, Jeddah",
+      arabicName: "مطاعم أبو زيد جدة",
+      englishName: "Abu Zaid Restaurant, Jeddah",
+      category: "dining",
+      verifiedMealSlots: ["فطور", "عشاء"],
+      area: "Central Jeddah",
+      recommendedTime: ["morning", "evening", "night"],
+      budgetLevel: ["budget"],
+      bestFor: ["families", "friends", "solo"],
+      interests: ["food", "restaurants", "culture"],
+      mapSearchQuery: "Abu Zaid Restaurant Jeddah",
+      shortDescription:
+        "مطعم شعبي يقدم أطباقاً حجازية وتقليدية مناسبة لبداية اليوم أو وجبة مسائية خفيفة.",
+      planningNotes:
+        "يستخدم للفطور أو العشاء فقط وفق الفترات الموثقة، وليس للغداء. مدة الزيارة 60 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 60,
+      planningScores: {
+        familyFriendly: 8,
+        luxury: 1,
+        localAuthenticity: 9,
+        trend: 6,
+        priority: 86,
+      },
+    },
+    {
+      id: "jeddah-al-saddah",
+      name: "Al Saddah Restaurant, Jeddah",
+      arabicName: "مطاعم السدة جدة",
+      englishName: "Al Saddah Restaurant, Jeddah",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Southern Jeddah",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "business"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "Al Saddah Restaurant Jeddah",
+      shortDescription:
+        "مطعم سعودي معروف بأطباق المدفون والأرز واللحوم، ومناسب للوجبات الجماعية.",
+      planningNotes:
+        "غداء أو عشاء محلي للمجموعات. مدة الزيارة 75 دقيقة تقدير تخطيطي، ويحدد الفرع وفق خط السير.",
+      visitDurationMinutes: 75,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 2,
+        localAuthenticity: 8,
+        trend: 6,
+        priority: 82,
+      },
+    },
+    {
+      id: "jeddah-century-burger",
+      name: "Century Burger, Jeddah",
+      arabicName: "سنتشري برجر جدة",
+      englishName: "Century Burger, Jeddah",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Al Faisaliyah",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "couples", "solo"],
+      interests: ["food", "restaurants"],
+      mapSearchQuery: "Century Burger Jeddah Park",
+      shortDescription:
+        "علامة برجر سعودية كاجوال تأسست في جدة وتوفر توقفاً سريعاً بين أنشطة وسط المدينة.",
+      planningNotes:
+        "خيار غداء أو عشاء كاجوال. مدة الزيارة 60 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 60,
+      planningScores: {
+        familyFriendly: 8,
+        luxury: 3,
+        localAuthenticity: 5,
+        trend: 8,
+        priority: 78,
+      },
+    },
+    {
+      id: "jeddah-twina",
+      name: "Twina Seafood, Jeddah",
+      arabicName: "مطعم توينا للمأكولات البحرية جدة",
+      englishName: "Twina Seafood, Jeddah",
+      category: "dining",
+      verifiedMealSlots: ["غداء", "عشاء"],
+      area: "Obhur",
+      recommendedTime: ["afternoon", "evening", "night"],
+      budgetLevel: ["midRange", "luxury"],
+      bestFor: ["families", "friends", "couples", "business"],
+      interests: ["food", "restaurants", "culture"],
+      mapSearchQuery: "Twina Seafood Obhur, Jeddah",
+      shortDescription:
+        "مطعم بحري سعودي تأسس في جدة ويقدم الأسماك والمأكولات البحرية بأساليب مستلهمة من مطبخ المدينة.",
+      planningNotes:
+        "غداء أو عشاء بحري مناسب للمجموعات. مدة الزيارة 120 دقيقة تقدير تخطيطي، ويفضل الحجز.",
+      visitDurationMinutes: 120,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 7,
+        localAuthenticity: 9,
+        trend: 8,
+        priority: 90,
+      },
+    },
+    {
+      id: "jeddah-barns",
+      name: "Barn's Coffee, Jeddah",
+      arabicName: "بارنز كوفي جدة",
+      englishName: "Barn's Coffee, Jeddah",
+      category: "cafe",
+      verifiedMealSlots: ["قهوة"],
+      area: "Obhur",
+      recommendedTime: ["morning", "afternoon", "evening"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "couples", "solo"],
+      interests: ["food", "relaxation"],
+      mapSearchQuery: "Barn's Coffee Obhur, Jeddah",
+      shortDescription:
+        "علامة قهوة سعودية ذات جذور في جدة توفر محطة قهوة عملية أثناء التنقل داخل المدينة.",
+      planningNotes:
+        "مسجل كتوقف قهوة فقط وليس كوجبة أو فطور. مدة الزيارة 45 دقيقة تقدير تخطيطي، ويحدد الفرع وفق المسار.",
+      visitDurationMinutes: 45,
+      planningScores: {
+        familyFriendly: 7,
+        luxury: 2,
+        localAuthenticity: 8,
+        trend: 7,
+        priority: 78,
+      },
+    },
+    {
+      id: "jeddah-al-shallal",
+      name: "Al Shallal Theme Park",
+      arabicName: "ملاهي الشلال",
+      englishName: "Al Shallal Theme Park",
+      category: "entertainment",
+      area: "Jeddah Corniche",
+      recommendedTime: ["evening", "night"],
+      budgetLevel: ["midRange"],
+      bestFor: ["families", "friends"],
+      interests: ["family", "kids", "entertainment", "adventure"],
+      mapSearchQuery: "Al Shallal Theme Park, Jeddah",
+      shortDescription:
+        "منتزه ترفيهي عائلي على الكورنيش يضم ألعاباً متنوعة وحلبة تزلج وبحيرة داخلية.",
+      planningNotes:
+        "نشاط مسائي عائلي. مدة الزيارة 180 دقيقة تقدير تخطيطي؛ يجب التحقق من التشغيل والتذاكر والقيود العمرية.",
+      visitDurationMinutes: 180,
+      planningScores: {
+        familyFriendly: 10,
+        luxury: 4,
+        localAuthenticity: 6,
+        trend: 8,
+        priority: 88,
+      },
+    },
+    {
+      id: "jeddah-king-fahd-fountain",
+      name: "King Fahd's Fountain",
+      arabicName: "نافورة الملك فهد",
+      englishName: "King Fahd's Fountain",
+      category: "nature",
+      area: "Jeddah Corniche",
+      recommendedTime: ["evening", "night"],
+      budgetLevel: ["budget", "midRange", "luxury"],
+      bestFor: ["families", "friends", "couples", "solo"],
+      interests: ["nature", "relaxation", "culture", "family", "entertainment"],
+      mapSearchQuery: "King Fahd's Fountain, Jeddah",
+      shortDescription:
+        "معلم بحري بارز على كورنيش جدة يظهر بوضوح في المساء من نقاط المشاهدة المحيطة.",
+      planningNotes:
+        "زيارة مسائية قصيرة تدمج مع الكورنيش. مدة الزيارة 60 دقيقة تقدير تخطيطي، وقد يتأثر التشغيل بالظروف والصيانة.",
+      visitDurationMinutes: 60,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 3,
+        localAuthenticity: 10,
+        trend: 8,
+        priority: 94,
+      },
+    },
+    {
+      id: "jeddah-central-fish-market",
+      name: "Jeddah Central Fish Market",
+      arabicName: "سوق السمك المركزي بجدة",
+      englishName: "Jeddah Central Fish Market",
+      category: "shopping",
+      area: "Al Baghdadiyah Al Gharbiyah",
+      recommendedTime: ["morning"],
+      budgetLevel: ["budget", "midRange"],
+      bestFor: ["families", "friends", "couples", "solo"],
+      interests: ["shopping", "food", "culture"],
+      mapSearchQuery: "Jeddah Central Fish Market, Al Baghdadiyah Al Gharbiyah",
+      shortDescription:
+        "سوق ساحلي تاريخي يعرض صيد البحر الأحمر ويقدم تجربة محلية مرتبطة بثقافة جدة البحرية.",
+      planningNotes:
+        "زيارة صباحية مبكرة قرب جدة التاريخية، وليست بديلاً تلقائياً عن وجبة مجدولة. مدة الزيارة 90 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 90,
+      planningScores: {
+        familyFriendly: 7,
+        luxury: 1,
+        localAuthenticity: 10,
+        trend: 7,
+        priority: 90,
+      },
+    },
+    {
+      id: "jeddah-mall-of-arabia",
+      name: "Mall of Arabia, Jeddah",
+      arabicName: "مول العرب جدة",
+      englishName: "Mall of Arabia, Jeddah",
+      category: "shopping",
+      area: "An Nuzhah",
+      recommendedTime: ["afternoon", "evening"],
+      budgetLevel: ["midRange", "luxury"],
+      bestFor: ["families", "friends", "couples"],
+      interests: ["shopping", "entertainment", "family", "food"],
+      mapSearchQuery: "Mall of Arabia, Jeddah",
+      shortDescription:
+        "مركز تسوق كبير في شمال جدة يجمع المتاجر والمطاعم وخيارات الترفيه العائلي الداخلية.",
+      planningNotes:
+        "محطة داخلية مناسبة للظهيرة أو المساء. مدة الزيارة 150 دقيقة تقدير تخطيطي.",
+      visitDurationMinutes: 150,
+      planningScores: {
+        familyFriendly: 9,
+        luxury: 6,
+        localAuthenticity: 4,
+        trend: 7,
+        priority: 80,
+      },
     },
   ],
 };
@@ -587,7 +1071,8 @@ const TAIF: DestinationKnowledgeSeed = {
       mapSearchQuery: "Al Hada, Taif",
       shortDescription:
         "جبل شهير بطريقه الملتوي وإطلالاته الخلابة وأجوائه الباردة وتلفريك الهدا.",
-      planningNotes: "أجمل صباحاً لصفاء الرؤية، يُدمج مع الشفا في يوم جبلي واحد.",
+      planningNotes:
+        "أجمل صباحاً لصفاء الرؤية، يُدمج مع الشفا في يوم جبلي واحد.",
     },
     {
       id: "taif-al-shafa",
@@ -725,7 +1210,8 @@ const ABHA: DestinationKnowledgeSeed = {
       mapSearchQuery: "Al Soudah, Abha",
       shortDescription:
         "أعلى قمم المملكة بغاباتها الكثيفة وأجوائها الباردة وإطلالاتها على السحب.",
-      planningNotes: "صباحاً لصفاء الجو، نقطة انطلاق للتلفريك والمشي بين الأشجار.",
+      planningNotes:
+        "صباحاً لصفاء الجو، نقطة انطلاق للتلفريك والمشي بين الأشجار.",
     },
     {
       id: "abha-soudah-cable-car",
@@ -741,7 +1227,8 @@ const ABHA: DestinationKnowledgeSeed = {
       mapSearchQuery: "Al Soudah Cable Car, Abha",
       shortDescription:
         "تلفريك يهبط من قمم السودة نحو رجال ألمع بإطلالات جبلية مذهلة على المنحدرات.",
-      planningNotes: "تحقق من مواعيد التشغيل والطقس، يُدمج مع السودة ورجال ألمع.",
+      planningNotes:
+        "تحقق من مواعيد التشغيل والطقس، يُدمج مع السودة ورجال ألمع.",
     },
     {
       id: "abha-al-muftaha",
@@ -805,7 +1292,8 @@ const ABHA: DestinationKnowledgeSeed = {
       mapSearchQuery: "Rijal Almaa Heritage Village",
       shortDescription:
         "قرية تراثية مدرجة بمبانيها الحجرية الملونة المتراصة على سفح الجبل، أيقونة عسير.",
-      planningNotes: "تبعد عن وسط أبها فخصّص لها نصف يوم، تُدمج مع نزول التلفريك.",
+      planningNotes:
+        "تبعد عن وسط أبها فخصّص لها نصف يوم، تُدمج مع نزول التلفريك.",
     },
   ],
 };
@@ -831,7 +1319,8 @@ const ALULA: DestinationKnowledgeSeed = {
       mapSearchQuery: "Hegra, AlUla",
       shortDescription:
         "أول موقع سعودي في التراث العالمي، مقابر نبطية منحوتة في الصخر تعود لآلاف السنين.",
-      planningNotes: "تُزار بجولة منظّمة (Rawi)، الأفضل صباحاً لتفادي حرارة الظهيرة.",
+      planningNotes:
+        "تُزار بجولة منظّمة (Rawi)، الأفضل صباحاً لتفادي حرارة الظهيرة.",
     },
     {
       id: "alula-elephant-rock",
@@ -962,6 +1451,14 @@ const PLACE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "riyadh-san-carlo-cicchetti": { lat: 24.75, lng: 46.64 },
   "riyadh-aok-kitchen": { lat: 24.755, lng: 46.63 },
   "riyadh-smokey-beards": { lat: 24.7, lng: 46.68 },
+  "riyadh-mama-noura": { lat: 24.7241, lng: 46.6565 },
+  "riyadh-al-romansiah": { lat: 24.6853, lng: 46.7955 },
+  "riyadh-shawarmer": { lat: 24.8082, lng: 46.6704 },
+  "riyadh-najd-village": { lat: 24.6977, lng: 46.6692 },
+  "riyadh-half-million": { lat: 24.6919, lng: 46.6736 },
+  "riyadh-zoo": { lat: 24.6769, lng: 46.7372 },
+  "riyadh-souq-al-zal": { lat: 24.629, lng: 46.7122 },
+  "riyadh-roshn-front": { lat: 24.8414, lng: 46.7332 },
   // Jeddah
   "jeddah-al-balad": { lat: 21.483, lng: 39.188 },
   "jeddah-yacht-club": { lat: 21.639, lng: 39.102 },
@@ -971,6 +1468,16 @@ const PLACE_COORDINATES: Record<string, { lat: number; lng: number }> = {
   "jeddah-angelina": { lat: 21.59, lng: 39.14 },
   "jeddah-red-sea-mall": { lat: 21.626, lng: 39.143 },
   "jeddah-al-rahma-mosque": { lat: 21.544, lng: 39.154 },
+  "jeddah-albaik": { lat: 21.562, lng: 39.2026 },
+  "jeddah-abu-zaid": { lat: 21.5341, lng: 39.2009 },
+  "jeddah-al-saddah": { lat: 21.4247, lng: 39.3145 },
+  "jeddah-century-burger": { lat: 21.5578, lng: 39.1853 },
+  "jeddah-twina": { lat: 21.7232, lng: 39.0805 },
+  "jeddah-barns": { lat: 21.7139, lng: 39.0975 },
+  "jeddah-al-shallal": { lat: 21.5679, lng: 39.111 },
+  "jeddah-king-fahd-fountain": { lat: 21.5157, lng: 39.1451 },
+  "jeddah-central-fish-market": { lat: 21.4806, lng: 39.1875 },
+  "jeddah-mall-of-arabia": { lat: 21.6325, lng: 39.1572 },
   // Taif
   "taif-al-hada": { lat: 21.37, lng: 40.29 },
   "taif-al-shafa": { lat: 21.07, lng: 40.31 },
@@ -1005,7 +1512,8 @@ function getMealSlots(place: DestinationPlaceSeed): MealSlot[] {
   if (place.verifiedMealSlots?.length) return place.verifiedMealSlots;
   if (place.category === "cafe") return ["قهوة"];
   if (place.category === "dining") {
-    if (place.recommendedTime.includes("morning")) return ["فطور", "غداء", "عشاء"];
+    if (place.recommendedTime.includes("morning"))
+      return ["فطور", "غداء", "عشاء"];
     if (place.recommendedTime.includes("afternoon")) return ["غداء", "عشاء"];
     return ["عشاء"];
   }
@@ -1017,14 +1525,20 @@ function getPlaceRoles(place: DestinationPlaceSeed): PlaceRole[] {
   if (place.recommendedTime.includes("morning")) roles.add("بداية اليوم");
   if (place.category === "cafe") roles.add("استراحة");
   if (place.category === "dining") roles.add("وجبة");
-  if (place.recommendedTime.includes("evening") || place.recommendedTime.includes("night")) {
+  if (
+    place.recommendedTime.includes("evening") ||
+    place.recommendedTime.includes("night")
+  ) {
     roles.add("ختام اليوم");
   }
-  if (place.category !== "cafe" && place.category !== "dining") roles.add("نشاط رئيسي");
+  if (place.category !== "cafe" && place.category !== "dining")
+    roles.add("نشاط رئيسي");
   return Array.from(roles);
 }
 
-function getWeatherSensitivity(place: DestinationPlaceSeed): WeatherSensitivity {
+function getWeatherSensitivity(
+  place: DestinationPlaceSeed
+): WeatherSensitivity {
   if (
     place.category === "dining" ||
     place.category === "cafe" ||
@@ -1037,7 +1551,11 @@ function getWeatherSensitivity(place: DestinationPlaceSeed): WeatherSensitivity 
   if (place.category === "nature" || place.category === "adventure") {
     return "تجنب وقت الظهر";
   }
-  if (place.area.includes("Al Soudah") || place.area.includes("Al Shafa") || place.area.includes("Al Hada")) {
+  if (
+    place.area.includes("Al Soudah") ||
+    place.area.includes("Al Shafa") ||
+    place.area.includes("Al Hada")
+  ) {
     return "مناسب للأجواء الباردة";
   }
   return "مناسب دائماً";
@@ -1045,43 +1563,77 @@ function getWeatherSensitivity(place: DestinationPlaceSeed): WeatherSensitivity 
 
 function getBookingDifficulty(place: DestinationPlaceSeed): BookingDifficulty {
   const text = `${place.shortDescription} ${place.planningNotes}`;
-  if (text.includes("تذاكر") || text.includes("جولة منظّمة") || text.includes("تحقق من مواعيد التشغيل")) {
+  if (
+    text.includes("تذاكر") ||
+    text.includes("جولة منظّمة") ||
+    text.includes("تحقق من مواعيد التشغيل")
+  ) {
     return "تذاكر مسبقة";
   }
-  if (text.includes("يتطلب حجز") || text.includes("الحجز") || text.includes("احجز")) {
+  if (
+    text.includes("يتطلب حجز") ||
+    text.includes("الحجز") ||
+    text.includes("احجز")
+  ) {
     return "الحجز ضروري";
   }
-  if (place.category === "dining" || place.category === "luxury") return "يفضل الحجز";
+  if (place.category === "dining" || place.category === "luxury")
+    return "يفضل الحجز";
   return "لا يحتاج";
 }
 
 function getPriorityScore(place: DestinationPlaceSeed): number {
   let score = 58;
   if (place.category === "heritage" || place.category === "luxury") score += 18;
-  if (place.category === "nature" || place.category === "entertainment") score += 12;
+  if (place.category === "nature" || place.category === "entertainment")
+    score += 12;
   if (place.budgetLevel.includes("luxury")) score += 5;
-  if (place.interests.includes("heritage") || place.interests.includes("culture")) score += 7;
-  if (place.interests.includes("food") || place.interests.includes("restaurants")) score += 4;
+  if (
+    place.interests.includes("heritage") ||
+    place.interests.includes("culture")
+  )
+    score += 7;
+  if (
+    place.interests.includes("food") ||
+    place.interests.includes("restaurants")
+  )
+    score += 4;
   return Math.max(1, Math.min(100, score));
 }
 
 function enrichPlace(place: DestinationPlaceSeed): DestinationPlace {
-  const { verifiedMealSlots: _verifiedMealSlots, ...basePlace } = place;
-  const luxuryScore = clampScore(
+  const {
+    verifiedMealSlots: _verifiedMealSlots,
+    planningScores,
+    ...basePlace
+  } = place;
+  const derivedLuxuryScore = clampScore(
     (place.budgetLevel.includes("luxury") ? 7 : 3) +
       (place.category === "luxury" || place.category === "dining" ? 2 : 0)
   );
-  const trendScore = clampScore(
-    (place.category === "cafe" || place.category === "dining" || place.category === "modern" ? 7 : 3) +
-      (place.interests.includes("entertainment") || place.interests.includes("shopping") ? 2 : 0)
+  const derivedTrendScore = clampScore(
+    (place.category === "cafe" ||
+    place.category === "dining" ||
+    place.category === "modern"
+      ? 7
+      : 3) +
+      (place.interests.includes("entertainment") ||
+      place.interests.includes("shopping")
+        ? 2
+        : 0)
   );
-  const localAuthenticityScore = clampScore(
+  const derivedLocalAuthenticityScore = clampScore(
     (place.category === "heritage" ? 9 : 3) +
-      (place.interests.includes("culture") || place.interests.includes("heritage") ? 1 : 0)
+      (place.interests.includes("culture") ||
+      place.interests.includes("heritage")
+        ? 1
+        : 0)
   );
-  const familyFriendlyScore = clampScore(
+  const derivedFamilyFriendlyScore = clampScore(
     (place.bestFor.includes("families") ? 8 : 4) +
-      (place.interests.includes("family") || place.interests.includes("kids") ? 1 : 0)
+      (place.interests.includes("family") || place.interests.includes("kids")
+        ? 1
+        : 0)
   );
 
   return {
@@ -1093,32 +1645,44 @@ function enrichPlace(place: DestinationPlaceSeed): DestinationPlace {
     bookingDifficulty: getBookingDifficulty(place),
     sameAreaPlaceIds: [],
     nearbyPlaceIds: [],
-    familyFriendlyScore,
-    luxuryScore,
-    localAuthenticityScore,
-    trendScore,
-    priorityScore: getPriorityScore(place),
+    familyFriendlyScore: clampScore(
+      planningScores?.familyFriendly ?? derivedFamilyFriendlyScore
+    ),
+    luxuryScore: clampScore(planningScores?.luxury ?? derivedLuxuryScore),
+    localAuthenticityScore: clampScore(
+      planningScores?.localAuthenticity ?? derivedLocalAuthenticityScore
+    ),
+    trendScore: clampScore(planningScores?.trend ?? derivedTrendScore),
+    priorityScore: Math.max(
+      1,
+      Math.min(100, planningScores?.priority ?? getPriorityScore(place))
+    ),
   };
 }
 
-function enrichDestination(destination: DestinationKnowledgeSeed): DestinationKnowledge {
+function enrichDestination(
+  destination: DestinationKnowledgeSeed
+): DestinationKnowledge {
   const places = destination.places.map(enrichPlace);
   return {
     ...destination,
-    places: places.map((place) => ({
+    places: places.map(place => ({
       ...place,
       sameAreaPlaceIds: places
-        .filter((candidate) => candidate.id !== place.id && candidate.area === place.area)
-        .map((candidate) => candidate.id),
+        .filter(
+          candidate =>
+            candidate.id !== place.id && candidate.area === place.area
+        )
+        .map(candidate => candidate.id),
       nearbyPlaceIds: places
         .filter(
-          (candidate) =>
+          candidate =>
             candidate.id !== place.id &&
             (candidate.area === place.area ||
               candidate.area.includes(place.area) ||
               place.area.includes(candidate.area))
         )
-        .map((candidate) => candidate.id),
+        .map(candidate => candidate.id),
     })),
   };
 }
@@ -1141,7 +1705,9 @@ export function normalizeText(value: string): string {
  * Resolve a user-entered destination (Arabic or English, with aliases) into the
  * matching curated knowledge object. Returns null when the destination is unknown.
  */
-export function resolveDestination(destination: string): DestinationKnowledge | null {
+export function resolveDestination(
+  destination: string
+): DestinationKnowledge | null {
   const needle = normalizeText(destination);
   if (!needle) return null;
 
@@ -1153,7 +1719,11 @@ export function resolveDestination(destination: string): DestinationKnowledge | 
       ...knowledge.aliases,
     ].map(normalizeText);
 
-    if (candidates.some((c) => c === needle || needle.includes(c) || c.includes(needle))) {
+    if (
+      candidates.some(
+        c => c === needle || needle.includes(c) || c.includes(needle)
+      )
+    ) {
       return knowledge;
     }
   }
@@ -1207,12 +1777,18 @@ const INTEREST_SYNONYMS: Array<{ tags: InterestTag[]; matchers: string[] }> = [
   },
   // Legacy labels (kept for backward compatibility)
   { tags: ["shopping", "entertainment"], matchers: ["تسوق", "shopping"] },
-  { tags: ["family", "kids"], matchers: ["عائلي", "اطفال", "family", "kids", "children"] },
+  {
+    tags: ["family", "kids"],
+    matchers: ["عائلي", "اطفال", "family", "kids", "children"],
+  },
   {
     tags: ["food", "restaurants"],
     matchers: ["طعام", "مطاعم", "food", "restaurants", "dining"],
   },
-  { tags: ["adventure", "sports"], matchers: ["مغامرات", "رياضه", "adventure", "sports"] },
+  {
+    tags: ["adventure", "sports"],
+    matchers: ["مغامرات", "رياضه", "adventure", "sports"],
+  },
 ];
 
 /**
@@ -1224,8 +1800,8 @@ export function normalizeInterests(interests: string[]): InterestTag[] {
   for (const interest of interests || []) {
     const value = normalizeText(interest);
     for (const entry of INTEREST_SYNONYMS) {
-      if (entry.matchers.some((m) => value.includes(normalizeText(m)))) {
-        entry.tags.forEach((t) => result.add(t));
+      if (entry.matchers.some(m => value.includes(normalizeText(m)))) {
+        entry.tags.forEach(t => result.add(t));
       }
     }
   }
@@ -1246,8 +1822,8 @@ const BUDGET_TIER_LABELS: Record<BudgetTier, string> = {
 };
 
 function formatPlace(place: DestinationPlace): string {
-  const times = place.recommendedTime.map((t) => TIME_BLOCK_LABELS[t]).join("، ");
-  const tiers = place.budgetLevel.map((t) => BUDGET_TIER_LABELS[t]).join("/");
+  const times = place.recommendedTime.map(t => TIME_BLOCK_LABELS[t]).join("، ");
+  const tiers = place.budgetLevel.map(t => BUDGET_TIER_LABELS[t]).join("/");
   return [
     `- ${place.englishName} (${place.arabicName})`,
     `  area: ${place.area} | category: ${place.category} | best time: ${times} | budget: ${tiers}`,
@@ -1320,7 +1896,10 @@ export const FORBIDDEN_PHRASES_EN = [
   "hidden gem",
 ];
 
-export const FORBIDDEN_PHRASES = [...FORBIDDEN_PHRASES_AR, ...FORBIDDEN_PHRASES_EN];
+export const FORBIDDEN_PHRASES = [
+  ...FORBIDDEN_PHRASES_AR,
+  ...FORBIDDEN_PHRASES_EN,
+];
 
 /**
  * Detects forbidden generic phrases in a piece of text (case/diacritic-insensitive).
@@ -1348,7 +1927,7 @@ export function findKnowledgePlace(
   if (!normalized) return null;
 
   return (
-    knowledge.places.find((place) => {
+    knowledge.places.find(place => {
       const candidates = [
         place.name,
         place.arabicName,
@@ -1357,7 +1936,7 @@ export function findKnowledgePlace(
       ].map(normalizeText);
 
       return candidates.some(
-        (candidate) =>
+        candidate =>
           candidate.length > 2 &&
           (normalized.includes(candidate) || candidate.includes(normalized))
       );

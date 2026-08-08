@@ -73,7 +73,12 @@ describe("normalizeInterests", () => {
       expect.arrayContaining(["culture", "heritage"])
     );
     expect(normalizeInterests(["ترند ولايف ستايل"])).toEqual(
-      expect.arrayContaining(["food", "restaurants", "shopping", "entertainment"])
+      expect.arrayContaining([
+        "food",
+        "restaurants",
+        "shopping",
+        "entertainment",
+      ])
     );
     expect(normalizeInterests(["استرخاء وطبيعة"])).toEqual(
       expect.arrayContaining(["nature", "relaxation"])
@@ -87,7 +92,9 @@ describe("normalizeInterests", () => {
 describe("findForbiddenPhrases", () => {
   it("detects generic Arabic and English phrases", () => {
     expect(findForbiddenPhrases("زيارة مطعم محلي شهير")).toContain("مطعم محلي");
-    expect(findForbiddenPhrases("visit a local market")).toContain("local market");
+    expect(findForbiddenPhrases("visit a local market")).toContain(
+      "local market"
+    );
   });
 
   it("does not flag specific named places", () => {
@@ -97,7 +104,7 @@ describe("findForbiddenPhrases", () => {
 
 describe("knowledge base integrity", () => {
   it("covers all five supported destinations", () => {
-    expect(DESTINATIONS_KNOWLEDGE.map((d) => d.canonicalName).sort()).toEqual(
+    expect(DESTINATIONS_KNOWLEDGE.map(d => d.canonicalName).sort()).toEqual(
       ["Abha", "AlUla", "Jeddah", "Riyadh", "Taif"].sort()
     );
   });
@@ -113,7 +120,10 @@ describe("knowledge base integrity", () => {
   it("gives every place real coordinates within Saudi Arabia bounds", () => {
     for (const dest of DESTINATIONS_KNOWLEDGE) {
       for (const place of dest.places) {
-        expect(place.coordinates, `${place.id} missing coordinates`).toBeDefined();
+        expect(
+          place.coordinates,
+          `${place.id} missing coordinates`
+        ).toBeDefined();
         expect(place.coordinates!.lat).toBeGreaterThan(16);
         expect(place.coordinates!.lat).toBeLessThan(33);
         expect(place.coordinates!.lng).toBeGreaterThan(34);
@@ -123,10 +133,12 @@ describe("knowledge base integrity", () => {
   });
 
   it("keeps Riyadh and Jeddah identifiers and classification arrays duplicate-free", () => {
-    const reviewed = DESTINATIONS_KNOWLEDGE.filter((destination) =>
+    const reviewed = DESTINATIONS_KNOWLEDGE.filter(destination =>
       ["Riyadh", "Jeddah"].includes(destination.canonicalName)
     );
-    const ids = reviewed.flatMap((destination) => destination.places.map((place) => place.id));
+    const ids = reviewed.flatMap(destination =>
+      destination.places.map(place => place.id)
+    );
     expect(new Set(ids).size).toBe(ids.length);
 
     for (const destination of reviewed) {
@@ -138,9 +150,15 @@ describe("knowledge base integrity", () => {
           place.interests,
           place.mealSlot,
         ]) {
-          expect(new Set(values).size, `${place.id} contains duplicate values`).toBe(values.length);
+          expect(
+            new Set(values).size,
+            `${place.id} contains duplicate values`
+          ).toBe(values.length);
         }
-        expect(place.planningNotes.trim().length, `${place.id} missing planning notes`).toBeGreaterThan(10);
+        expect(
+          place.planningNotes.trim().length,
+          `${place.id} missing planning notes`
+        ).toBeGreaterThan(10);
         expect(place.priorityScore).toBeGreaterThanOrEqual(1);
         expect(place.priorityScore).toBeLessThanOrEqual(100);
         for (const score of [
@@ -156,14 +174,64 @@ describe("knowledge base integrity", () => {
     }
   });
 
+  it("keeps the curated Riyadh and Jeddah expansion complete and bilingual", () => {
+    const expectedNewIds = [
+      "riyadh-mama-noura",
+      "riyadh-al-romansiah",
+      "riyadh-shawarmer",
+      "riyadh-najd-village",
+      "riyadh-half-million",
+      "riyadh-zoo",
+      "riyadh-souq-al-zal",
+      "riyadh-roshn-front",
+      "jeddah-albaik",
+      "jeddah-abu-zaid",
+      "jeddah-al-saddah",
+      "jeddah-century-burger",
+      "jeddah-twina",
+      "jeddah-barns",
+      "jeddah-al-shallal",
+      "jeddah-king-fahd-fountain",
+      "jeddah-central-fish-market",
+      "jeddah-mall-of-arabia",
+    ];
+    const riyadh = resolveDestination("Riyadh")!;
+    const jeddah = resolveDestination("Jeddah")!;
+    const reviewedPlaces = [...riyadh.places, ...jeddah.places];
+
+    expect(riyadh.places).toHaveLength(26);
+    expect(jeddah.places).toHaveLength(18);
+    for (const id of expectedNewIds) {
+      const place = reviewedPlaces.find(candidate => candidate.id === id);
+      expect(place, `${id} missing`).toBeDefined();
+      expect(
+        place!.arabicName.trim().length,
+        `${id} missing Arabic name`
+      ).toBeGreaterThan(2);
+      expect(
+        place!.englishName.trim().length,
+        `${id} missing English name`
+      ).toBeGreaterThan(2);
+      expect(
+        place!.visitDurationMinutes,
+        `${id} missing planning duration`
+      ).toBeGreaterThan(0);
+    }
+  });
+
   it("uses the food roles explicitly supported by the current Riyadh and Jeddah notes", () => {
     const riyadh = resolveDestination("الرياض")!;
     const jeddah = resolveDestination("جدة")!;
-    expect(riyadh.places.find((place) => place.id === "riyadh-aok-kitchen")?.mealSlot)
-      .toEqual(["فطور", "غداء"]);
-    expect(riyadh.places.find((place) => place.id === "riyadh-aok-kitchen")?.recommendedTime)
-      .toEqual(["morning", "afternoon"]);
-    expect(jeddah.places.find((place) => place.id === "jeddah-angelina")).toMatchObject({
+    expect(
+      riyadh.places.find(place => place.id === "riyadh-aok-kitchen")?.mealSlot
+    ).toEqual(["فطور", "غداء"]);
+    expect(
+      riyadh.places.find(place => place.id === "riyadh-aok-kitchen")
+        ?.recommendedTime
+    ).toEqual(["morning", "afternoon"]);
+    expect(
+      jeddah.places.find(place => place.id === "jeddah-angelina")
+    ).toMatchObject({
       category: "cafe",
       mealSlot: ["قهوة"],
     });
